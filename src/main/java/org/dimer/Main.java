@@ -5,12 +5,14 @@ import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.dimer.compiler.SimpleLangBytecodeVisitor;
 
+import java.io.File;
 import java.io.FileOutputStream;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 
 public class Main {
     private static final String BASE_TARGET_PATH = "./target/classes/";
+    private static final File BASE_SOURCE_PATH = new File("./src/main/java/");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {
@@ -30,17 +32,40 @@ public class Main {
         System.out.println(tree.toStringTree(parser));
 
         String className = tree.classDeclaration().getFirst().IDENTIFIER().getText();
+        String pack = determinePackage(filePath);
 
         // Visitor para geração de bytecode
-        SimpleLangBytecodeVisitor visitor = new SimpleLangBytecodeVisitor(className);
+        SimpleLangBytecodeVisitor visitor = new SimpleLangBytecodeVisitor(determineClassName(pack, className));
         visitor.visit(tree);
+
+        String outputPath = BASE_TARGET_PATH + pack + "/" + className + ".class";
+
+        File outputFile = new File(outputPath);
+        File parentDir = outputFile.getParentFile();
+
+        if (!parentDir.exists()) {
+            parentDir.mkdirs();
+        }
 
         byte[] bytecode = visitor.getBytecode();
 
-        try (FileOutputStream fos = new FileOutputStream(BASE_TARGET_PATH + className + ".class")) {
+        try (FileOutputStream fos = new FileOutputStream(outputFile)) {
             fos.write(bytecode);
         }
 
-        System.out.println("Bytecode gerado e salvo em " + className + ".class");
+        System.out.println("Bytecode gerado e salvo em " + outputFile.getPath());
+    }
+
+    private static String determinePackage(String filePath) {
+        String path = new File(filePath).getParentFile().getPath();
+        return path.replace(BASE_SOURCE_PATH.getPath(), "").replace("\\", "/");
+    }
+
+    private static String determineClassName(String packageName, String className) {
+        if (packageName.startsWith("/")) {
+            packageName = packageName.substring(1);
+        }
+
+        return packageName + "/" + className;
     }
 }

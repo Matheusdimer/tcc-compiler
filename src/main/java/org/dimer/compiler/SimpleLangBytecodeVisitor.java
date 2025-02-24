@@ -1,13 +1,14 @@
 package org.dimer.compiler;
 
+import org.antlr.v4.runtime.ParserRuleContext;
 import org.dimer.SimpleLangBaseVisitor;
 import org.dimer.SimpleLangParser;
 import org.dimer.compiler.data.Variable;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.MethodVisitor;
 
-import java.util.LinkedList;
-import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.objectweb.asm.Opcodes.*;
 
@@ -16,7 +17,7 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
     private final ClassWriter classWriter;
     private final String className;
     private MethodVisitor currentMethod;
-    private final List<Variable> classVariables = new LinkedList<>();
+    private final Map<String, Variable> classVariables = new HashMap<>();
 
     public SimpleLangBytecodeVisitor(String className) {
         this.className = className;
@@ -51,7 +52,7 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
 
             // Adiciona a lista de variáveis de classe para ter seu valor preenchido no bloco do construtor
             var value  = ctx.expression() != null ? getLiteralValue(ctx.expression().literal()) : null;
-            classVariables.add(new Variable(varName, varType, value));
+            classVariables.put(varName, new Variable(varName, varType, value));
         } else {
             // TODO variável local
         }
@@ -72,7 +73,7 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
         currentMethod.visitMethodInsn(INVOKESPECIAL, "java/lang/Object", "<init>", "()V", false);
 
         // Inicializa os valores das variáveis de classe caso existam
-        for (Variable classVariable : classVariables) {
+        for (Variable classVariable : classVariables.values()) {
             if (classVariable.value() == null) {
                 continue;
             }
@@ -82,12 +83,71 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
             currentMethod.visitFieldInsn(PUTFIELD, className, classVariable.name(), typeToDescriptor(classVariable.type()));
         }
 
+        // Passa por todos os comandos do bloco init
+        for (SimpleLangParser.StatementContext statementContext : ctx.statement()) {
+            visit(statementContext);
+        }
+
         currentMethod.visitInsn(RETURN);
         currentMethod.visitMaxs(0, 0); // Será calculado automaticamente pelo ASM
         currentMethod.visitEnd();
         currentMethod = null;
 
         return null;
+    }
+
+    @Override
+    public Void visitStatement(SimpleLangParser.StatementContext ctx) {
+        if (currentMethod == null) {
+            throw new IllegalStateException(String.format("Erro ao processar uma declaração na linha %d: Statement %s sem estar dentro de um método", ctx.start.getLine(), ctx.getText()));
+        }
+
+        try {
+            if (ctx.getText().startsWith("print")) {
+                executePrint(ctx);
+            } else if (ctx.getText().startsWith("return")) {
+                visit(ctx.expression());
+                currentMethod.visitInsn(IRETURN);
+            } else {
+                super.visitStatement(ctx);
+            }
+        } catch (Exception e) {
+            throw new RuntimeException(
+                    String.format("Erro ao processar uma declaração na linha %d: %s", ctx.start.getLine(), e.getMessage())
+            );
+        }
+
+        return null;
+    }
+
+    @Override
+    public Void visitExpression(SimpleLangParser.ExpressionContext ctx) {
+        if (ctx.literal() != null) {
+            currentMethod.visitLdcInsn(getLiteralValue(ctx.literal()));
+        } else if (ctx.IDENTIFIER() != null) { // Aponta para uma variável
+            String varName = ctx.IDENTIFIER().getText();
+            currentMethod.visitVarInsn(ALOAD, 0); // Carrega 'this'
+            currentMethod.visitFieldInsn(GETFIELD, className, varName, determineDescriptor(varName, ctx)); // Pega o atributo
+        } else {
+            super.visitExpression(ctx); // Processa demais expressões normalmente
+        }
+        return null;
+    }
+
+    private void executePrint(SimpleLangParser.StatementContext ctx) {
+        currentMethod.visitFieldInsn(GETSTATIC, "java/lang/System", "out", "Ljava/io/PrintStream;");
+        visit(ctx.expression());
+        currentMethod.visitMethodInsn(INVOKEVIRTUAL, "java/io/PrintStream", "println", "(Ljava/lang/String;)V", false);
+    }
+
+    private String determineDescriptor(String varName, ParserRuleContext ctx) {
+        var variable = classVariables.get(varName);
+
+        if (variable == null) {
+            throw new IllegalArgumentException(String.format("Linha %d: Variável %s não encontrada", ctx.start.getLine(), varName));
+        }
+
+        return typeToDescriptor(variable.type());
     }
 
     /**
