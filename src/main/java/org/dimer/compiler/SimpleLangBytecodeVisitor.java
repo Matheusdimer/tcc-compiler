@@ -49,6 +49,7 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
         if (currentMethod == null) { // Significa que é variável da classe
             classWriter.visitField(ACC_PRIVATE, varName, descriptor, null, null).visitEnd();
 
+            // Adiciona a lista de variáveis de classe para ter seu valor preenchido no bloco do construtor
             var value  = ctx.expression() != null ? getLiteralValue(ctx.expression().literal()) : null;
             classVariables.add(new Variable(varName, varType, value));
         } else {
@@ -58,6 +59,10 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
         return null;
     }
 
+    /**
+     * Cria o construtor da classe a partir do bloco 'init' do programa.
+     * Nesse bloco também são imputados os valores das variáveis da classe (do bloco var)
+     */
     @Override
     public Void visitInitSection(SimpleLangParser.InitSectionContext ctx) {
         currentMethod = classWriter.visitMethod(ACC_PUBLIC, "<init>", "()V", null, null);
@@ -85,6 +90,9 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
         return null;
     }
 
+    /**
+     * Converte a tipagem da linguagem para a tipagem da JVM
+     */
     private String typeToDescriptor(String type) {
         return switch (type) {
             case "int" -> "I";
@@ -95,6 +103,10 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
         };
     }
 
+    /**
+     * Retorna o valor convertido para Java de uma expressão literal.
+     * Ex: int valor = 25 -> retorna int 25
+     */
     private Object getLiteralValue(SimpleLangParser.LiteralContext ctx) {
         if (ctx == null) {
             return null;
