@@ -68,13 +68,13 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
 
         // Inicializa os valores das variáveis de classe caso existam
         for (Variable classVariable : classVariables) {
-            if (classVariable.getValue() == null) {
+            if (classVariable.value() == null) {
                 continue;
             }
 
             currentMethod.visitVarInsn(ALOAD, 0); // Carrega o this
-            currentMethod.visitLdcInsn(classVariable.getValue()); // Load do valor
-            currentMethod.visitFieldInsn(PUTFIELD, className, classVariable.getName(), typeToDescriptor(classVariable.getType()));
+            currentMethod.visitLdcInsn(classVariable.value()); // Load do valor
+            currentMethod.visitFieldInsn(PUTFIELD, className, classVariable.name(), typeToDescriptor(classVariable.type()));
         }
 
         currentMethod.visitInsn(RETURN);
