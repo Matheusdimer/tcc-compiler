@@ -128,10 +128,40 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
             String varName = ctx.IDENTIFIER().getText();
             currentMethod.visitVarInsn(ALOAD, 0); // Carrega 'this'
             currentMethod.visitFieldInsn(GETFIELD, className, varName, determineDescriptor(varName, ctx)); // Pega o atributo
+        } else if (ctx.stringConcatenation() != null) {
+            executeStringConcatenation(ctx.stringConcatenation());
         } else {
             super.visitExpression(ctx); // Processa demais expressões normalmente
         }
         return null;
+    }
+
+    /**
+     * Método para compilar a concatenação de strings usando o StringBuilder.
+     * Funciona apenas se a concatenação começar obrigatoriamente com um string literal.
+     */
+    private void executeStringConcatenation(SimpleLangParser.StringConcatenationContext ctx) {
+        currentMethod.visitTypeInsn(NEW, "java/lang/StringBuilder");
+        currentMethod.visitInsn(DUP); // Duplica a referência no topo da pilha para usá-la duas vezes (problema de referência única)
+        currentMethod.visitMethodInsn(INVOKESPECIAL, "java/lang/StringBuilder", "<init>", "()V", false);
+
+        for (int i = 0; i < ctx.getChildCount(); i++) {
+            var child = ctx.getChild(i);
+
+            if (child.getText().equals("+")) {
+                continue;
+            }
+
+            if (child instanceof SimpleLangParser.LiteralContext literalContext) {
+                currentMethod.visitLdcInsn(getLiteralValue(literalContext));
+            } else if (child instanceof SimpleLangParser.ExpressionContext expressionContext) {
+                visit(expressionContext);
+            }
+
+            currentMethod.visitMethodInsn(INVOKEVIRTUAL, "java/lang/StringBuilder", "append", "(Ljava/lang/String;)Ljava/lang/StringBuilder;", false);
+        }
+
+        currentMethod.visitMethodInsn(INVOKEVIRTUAL, "java/lang/StringBuilder", "toString", "()Ljava/lang/String;", false);
     }
 
     private void executePrint(SimpleLangParser.StatementContext ctx) {

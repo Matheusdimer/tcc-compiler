@@ -38,12 +38,32 @@ assignment    : IDENTIFIER ASSIGN expression ;
 methodCall    : IDENTIFIER LPAREN argumentList? RPAREN ;
 argumentList  : expression (COMMA expression)* ;
 
-expression    : expression (PLUS | MINUS | MULT | DIV) expression
-              | expression (GT | LT | GTE | LTE | EQUAL | NOTEQUAL) expression
-              | LPAREN expression RPAREN
+// Alteração importante para diferenciar tipos:
+expression
+              : stringConcatenation
+              | numericExpression
+              | comparisonExpression
+              | comparisonStringExpression
+              | parenthesizedExpression
               | methodCall
               | IDENTIFIER
-              | literal ;
+              | literal
+              ;
+
+stringConcatenation
+              : STRING (PLUS (STRING | IDENTIFIER))+ ;
+
+numericExpression
+              : (INT | FLOAT | IDENTIFIER) (PLUS | MINUS | MULT | DIV) (INT | FLOAT | IDENTIFIER)* ;
+
+comparisonExpression
+              : (INT | FLOAT | IDENTIFIER) (GT | LT | GTE | LTE | EQUAL | NOTEQUAL) (INT | FLOAT | IDENTIFIER) ;
+
+comparisonStringExpression
+              : (STRING | IDENTIFIER) (EQUAL (STRING | IDENTIFIER))+ ;
+
+parenthesizedExpression
+              : LPAREN expression RPAREN ;
 
 literal       : STRING
               | INT
