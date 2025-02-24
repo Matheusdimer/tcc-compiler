@@ -57,6 +57,7 @@ type          : 'string'
 // Lexer Rules
 
 COMMENT: '#' ~[\r\n]* -> skip;         // Comentários iniciados com '#' são ignorados
+BLOCK_COMMENT: '##' .*? '##' -> skip; // Comentários de bloco entre '##' ... '##'
 IDENTIFIER    : [a-zA-Z_] [a-zA-Z_0-9]* ;
 STRING        : '"' .*? '"' ;
 INT           : [0-9]+ ;
