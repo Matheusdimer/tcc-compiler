@@ -4,43 +4,43 @@ grammar SimpleLang;
 
 program       : classDeclaration+ ;
 classDeclaration
-              : 'class' IDENTIFIER '{' varSection methodsSection initSection '}' ;
+              : CLASS IDENTIFIER LBRACE varSection methodsSection initSection RBRACE ;
 
-varSection    : 'var' '{' varDeclaration* '}' ;
+varSection    : VAR LBRACE varDeclaration* RBRACE ;
 varDeclaration
-              : type IDENTIFIER ('=' expression)? ';' ;
+              : type IDENTIFIER (ASSIGN expression)? SEMICOLON ;
 
 methodsSection
-              : 'methods' '{' methodDeclaration* '}' ;
+              : METHODS LBRACE methodDeclaration* RBRACE ;
 methodDeclaration
-              : type IDENTIFIER '(' parameterList? ')' block ;
+              : type IDENTIFIER LPAREN parameterList? RPAREN block ;
 
-parameterList : parameter (',' parameter)* ;
+parameterList : parameter (COMMA parameter)* ;
 parameter     : type IDENTIFIER ;
 
-initSection   : 'init' '{' statement* '}' ;
+initSection   : INIT LBRACE statement* RBRACE ;
 
-block         : '{' statement* '}' ;
+block         : LBRACE statement* RBRACE ;
 
 statement     : varDeclaration
-              | methodCall ';'
-              | assignment ';'
+              | methodCall SEMICOLON
+              | assignment SEMICOLON
               | ifStatement
               | whileStatement
-              | 'return' expression ';'
-              | 'print' '(' expression ')' ';' ;
+              | RETURN expression SEMICOLON
+              | PRINT LPAREN expression RPAREN SEMICOLON ;
 
-ifStatement   : 'if' '(' expression ')' block ('else' block)? ;
+ifStatement   : IF LPAREN expression RPAREN block (ELSE block)? ;
 whileStatement
-              : 'while' '(' expression ')' block ;
+              : WHILE LPAREN expression RPAREN block ;
 
-assignment    : IDENTIFIER '=' expression ;
-methodCall    : IDENTIFIER '(' argumentList? ')' ;
-argumentList  : expression (',' expression)* ;
+assignment    : IDENTIFIER ASSIGN expression ;
+methodCall    : IDENTIFIER LPAREN argumentList? RPAREN ;
+argumentList  : expression (COMMA expression)* ;
 
-expression    : expression ('+' | '-' | '*' | '/') expression
-              | expression ('>' | '<' | '>=' | '<=' | '==' | '!=') expression
-              | '(' expression ')'
+expression    : expression (PLUS | MINUS | MULT | DIV) expression
+              | expression (GT | LT | GTE | LTE | EQUAL | NOTEQUAL) expression
+              | LPAREN expression RPAREN
               | methodCall
               | IDENTIFIER
               | literal ;
@@ -49,18 +49,53 @@ literal       : STRING
               | INT
               | FLOAT ;
 
-type          : 'string'
-              | 'int'
-              | 'float'
-              | 'void' ;
+type          : STRING_TYPE
+              | INT_TYPE
+              | FLOAT_TYPE
+              | VOID_TYPE ;
 
 // Lexer Rules
 
-COMMENT: '#' ~[\r\n]* -> skip;         // Comentários iniciados com '#' são ignorados
-BLOCK_COMMENT: '##' .*? '##' -> skip; // Comentários de bloco entre '##' ... '##'
+// Palavras-chave
+CLASS         : 'class' ;
+VAR           : 'var' ;
+METHODS       : 'methods' ;
+INIT          : 'init' ;
+RETURN        : 'return' ;
+PRINT         : 'print' ;
+IF            : 'if' ;
+ELSE          : 'else' ;
+WHILE         : 'while' ;
+STRING_TYPE   : 'string' ;
+INT_TYPE      : 'int' ;
+FLOAT_TYPE    : 'float' ;
+VOID_TYPE     : 'void' ;
+
+// Símbolos e operadores
+LBRACE        : '{' ;
+RBRACE        : '}' ;
+LPAREN        : '(' ;
+RPAREN        : ')' ;
+SEMICOLON     : ';' ;
+COMMA         : ',' ;
+ASSIGN        : '=' ;
+PLUS          : '+' ;
+MINUS         : '-' ;
+MULT          : '*' ;
+DIV           : '/' ;
+GT            : '>' ;
+LT            : '<' ;
+GTE           : '>=' ;
+LTE           : '<=' ;
+EQUAL         : '==' ;
+NOTEQUAL      : '!=' ;
+
+// Outros tokens
+COMMENT       : '#' ~[\r\n]* -> skip;         // Comentários iniciados com '#' são ignorados
+BLOCK_COMMENT : '##' .*? '##' -> skip;       // Comentários de bloco entre '##' ... '##'
 IDENTIFIER    : [a-zA-Z_] [a-zA-Z_0-9]* ;
 STRING        : '"' .*? '"' ;
 INT           : [0-9]+ ;
 FLOAT         : [0-9]+ '.' [0-9]+ ;
 
-WHITESPACE    : [ \t\r\n]+ -> skip ;
+WHITESPACE    : [ \t\r\n]+ -> skip ;          // Espaços em branco, tabs, novas linhas ignorados
