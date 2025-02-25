@@ -12,6 +12,10 @@ class Hello {
         }
 
         anosParaAposentar(): int {
+            if (getIdade() > idadeAposentadoria) {
+                return 0;
+            }
+
             return idadeAposentadoria - getIdade();
         }
 

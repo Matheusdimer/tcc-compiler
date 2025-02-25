@@ -9,6 +9,7 @@ import org.dimer.compiler.data.Method;
 import org.dimer.compiler.data.Variable;
 import org.dimer.compiler.util.LocalVariableManager;
 import org.objectweb.asm.ClassWriter;
+import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Type;
 
@@ -203,7 +204,15 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
         visit(ctx.block());
 
         currentMethod.visitMaxs(0, 0); // Computado automaticamente pelo ASM
+        currentMethod.visitEnd();
+        currentMethod = null;
 
+        localVariablesStack.pop(); // Remove as variáveis locais do método da pilha após a compilação do método
+
+        return null;
+    }
+
+    private void executeReturnBasedOnType(String methodReturnType, String methodName) {
         switch (methodReturnType) {
             case TYPE_INT: currentMethod.visitInsn(IRETURN); break;
             case TYPE_FLOAT: currentMethod.visitInsn(FRETURN); break;
@@ -211,13 +220,6 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
             case TYPE_VOID: currentMethod.visitInsn(RETURN); break;
             default: throw new IllegalArgumentException("Tipo de retorno desconhecido: " + methodReturnType + " para o método " + methodName);
         }
-
-        currentMethod.visitEnd();
-        currentMethod = null; // Reseta o `currentMethod` após o término
-
-        localVariablesStack.pop(); // Remove as variáveis locais do método da pilha após a compilação do método
-
-        return null;
     }
 
     @Override
@@ -372,6 +374,98 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
         }
 
         currentMethod.visitMethodInsn(INVOKEVIRTUAL, "java/lang/StringBuilder", "toString", "()Ljava/lang/String;", false);
+        return null;
+    }
+
+
+    /**
+     * Exemplo prático:
+     * <pre>
+     *         anosParaAposentar(): int {
+     *             if (getIdade() > idadeAposentadoria) {
+     *                 return 0;
+     *             }
+     *
+     *             return idadeAposentadoria - getIdade();
+     *         }
+     * </pre>
+     *
+     * Compilado:
+     *<pre>
+     *public anosParaAposentar()I
+     *     ALOAD 0
+     *     INVOKEVIRTUAL org/dimer/code/Hello.getIdade ()I  # execução method call
+     *     ALOAD 0
+     *     GETFIELD org/dimer/code/Hello.idadeAposentadoria : I # execução method call
+     *     IF_ICMPGT L0  # compara os 2 inteiros (a > b), caso true jump pro label then (L0)
+     *     GOTO L1       # Jump para ponto após o fim do if
+     *    L0 # label then
+     *    FRAME SAME
+     *     LDC 0
+     *     IRETURN
+     *    L1 # label end
+     *    FRAME SAME
+     *     ALOAD 0
+     *     GETFIELD org/dimer/code/Hello.idadeAposentadoria : I
+     *     ALOAD 0
+     *     INVOKEVIRTUAL org/dimer/code/Hello.getIdade ()I
+     *     ISUB
+     *     IRETURN
+     *     MAXSTACK = 2
+     *     MAXLOCALS = 1
+     *</pre>
+     */
+    @Override
+    public Void visitIfStatement(SimpleLangParser.IfStatementContext ctx) {
+        if (!TYPE_BOOL.equals(determineTypeOfExpression(ctx.expression()))) {
+            throw new IllegalArgumentException(String.format("Linha %d: expressão dentro do if %s não retorna boolean", ctx.start.getLine(), ctx.expression().getText()));
+        }
+
+        // Faz o load dos valores contidos na expressão para a pilha
+        visit(ctx.expression());
+
+        Label thenLabel = new Label(); // Marcação para o bloco de código caso o if dê true
+        Label endLabel = new Label(); // Marcação para o final do bloco do if
+
+        // Instrução de comparação de int GT (greater than), se retornar true (1), faz o jump para o label do bloco then
+        currentMethod.visitJumpInsn(IF_ICMPGT, thenLabel);
+
+        // Após à execução do bloco then, volta e da jump para o final do if
+        currentMethod.visitJumpInsn(GOTO, endLabel);
+
+        // Marca de fato o início do bloco then
+        currentMethod.visitLabel(thenLabel);
+        visit(ctx.block(0)); // Compila o código dentro do bloco then
+
+        // Acabado o bloco then, marca o ponto de fim para continuar o método
+        currentMethod.visitLabel(endLabel);
+
+        return null;
+    }
+
+    /**
+     * Entra na expressão e faz apenas o load dos dois operandos
+     * (exemplo: em 'a > b' faz apenas o load de a e de b, sem executar a comparação)
+     */
+    @Override
+    public Void visitComparisonExpression(SimpleLangParser.ComparisonExpressionContext ctx) {
+        visit(ctx.operand(0));
+        visit(ctx.operand(1));
+        return null;
+    }
+
+
+    @Override
+    public Void visitComparisonStringExpression(SimpleLangParser.ComparisonStringExpressionContext ctx) {
+        return super.visitComparisonStringExpression(ctx);
+    }
+
+    @Override
+    public Void visitReturnStatement(SimpleLangParser.ReturnStatementContext ctx) {
+        visit(ctx.expression());
+
+        String type = determineTypeOfExpression(ctx.expression());
+        executeReturnBasedOnType(type, "N/A");
         return null;
     }
 
@@ -604,6 +698,10 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
 
         if (ctx.literal() != null) {
             return determineLiteralType(ctx.literal());
+        }
+
+        if (ctx.comparisonExpression() != null || ctx.comparisonStringExpression() != null) {
+            return TYPE_BOOL;
         }
 
         throw new IllegalArgumentException(String.format("Linha %d: não foi possível determinar o tipo de retorno da expressão %s",

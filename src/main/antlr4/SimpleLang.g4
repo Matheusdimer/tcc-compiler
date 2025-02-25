@@ -27,7 +27,7 @@ statement     : varDeclaration
               | assignment SEMICOLON
               | ifStatement
               | whileStatement
-              | RETURN expression SEMICOLON
+              | returnStatement
               | printStatement
               | readStatement ;
 
@@ -38,6 +38,9 @@ readStatement : READ LPAREN IDENTIFIER RPAREN SEMICOLON ;
 ifStatement   : IF LPAREN expression RPAREN block (ELSE block)? ;
 whileStatement
               : WHILE LPAREN expression RPAREN block ;
+
+returnStatement
+              : RETURN expression SEMICOLON ;
 
 assignment    : IDENTIFIER ASSIGN expression ;
 methodCall    : IDENTIFIER LPAREN argumentList? RPAREN ;
@@ -65,7 +68,7 @@ involvedNumericExpression
               : LPAREN numericExpression RPAREN ;
 
 comparisonExpression
-              : (INT | FLOAT | IDENTIFIER) (GT | LT | GTE | LTE | EQUAL | NOTEQUAL) (INT | FLOAT | IDENTIFIER) ;
+              : (operand) (GT | LT | GTE | LTE | EQUAL | NOTEQUAL) (operand) ;
 
 comparisonStringExpression
               : (STRING | IDENTIFIER) (EQUAL (STRING | IDENTIFIER))+ ;
