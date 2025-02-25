@@ -261,7 +261,7 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
             String varName = ctx.IDENTIFIER().getText();
             Variable variable = getVariable(ctx, varName);
 
-            if ("string".equals(variable.type())) {
+            if (TYPE_STRING.equals(variable.type())) {
                 throw new IllegalArgumentException(String.format("Linha %d: variável %s do tipo string não pode ser usada em operação aritmética", ctx.start.getLine(), varName));
             }
 
@@ -270,6 +270,19 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
             // Caso a operação atual esteja lidando com floats, deve ser feita a conversão de todos os inteiros para float
             if (isFloatOperation && "int".equals(variable.type())) {
                 currentMethod.visitInsn(I2F);
+            }
+        } else if (ctx.methodCall() != null) {
+            String type = determineReturnTypeMethodCall(ctx.methodCall());
+
+            if (TYPE_STRING.equals(type)) {
+                throw new IllegalArgumentException(String.format("Linha %d: método %s com retorno tipo string não pode ser usada em operação aritmética",
+                        ctx.start.getLine(), ctx.methodCall().IDENTIFIER().getText()));
+            }
+
+            visit(ctx.methodCall());
+
+            if (isFloatOperation && TYPE_INT.equals(type)) {
+                currentMethod.visitInsn(I2F); // Converte int pra float
             }
         } else {
             currentMethod.visitLdcInsn(getLiteralValue(ctx));
@@ -536,9 +549,7 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
         }
 
         if (ctx.methodCall() != null) {
-            String methodName = ctx.methodCall().IDENTIFIER().getText();
-            Method method = getMethod(ctx.methodCall(), methodName);
-            return method.returnType();
+            return determineReturnTypeMethodCall(ctx.methodCall());
         }
 
         if (ctx.literal() != null) {
@@ -547,6 +558,12 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
 
         throw new IllegalArgumentException(String.format("Linha %d: não foi possível determinar o tipo de retorno da expressão %s",
                 ctx.start.getLine(), ctx.getText()));
+    }
+
+    private String determineReturnTypeMethodCall(SimpleLangParser.MethodCallContext ctx) {
+        String methodName = ctx.IDENTIFIER().getText();
+        Method method = getMethod(ctx, methodName);
+        return method.returnType();
     }
 
     private String determineLiteralType(SimpleLangParser.LiteralContext ctx) {

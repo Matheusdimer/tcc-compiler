@@ -6,13 +6,17 @@ class Hello {
     }
 
     methods {
-        int anosParaAposentar() {
-            int idadeAposentadoria = 60;
-            return idadeAposentadoria - idade;
+        int getIdade() {
+            return idade;
         }
 
-        string formatAposentadoria(int anos) {
-            return "Anos para se aposentar: " + anos;
+        int anosParaAposentar() {
+            int idadeAposentadoria = 60;
+            return idadeAposentadoria - getIdade();
+        }
+
+        string formatAposentadoria() {
+            return "Anos para se aposentar: " + anosParaAposentar();
         }
     }
 
@@ -21,8 +25,6 @@ class Hello {
         print("Olá " + nome + ", você tem " + idade + " anos de idade.");
         print("Cálculo muito louco: " + (idade + 10.5 + (20 - 2)));
 
-        int anos = anosParaAposentar();
-
-        print(formatAposentadoria(anos));
+        print(formatAposentadoria());
     }
 }

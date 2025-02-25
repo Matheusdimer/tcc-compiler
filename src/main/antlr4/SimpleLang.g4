@@ -77,7 +77,7 @@ type          : STRING_TYPE
               | FLOAT_TYPE
               | VOID_TYPE ;
 
-operand       : INT | FLOAT | IDENTIFIER ;
+operand       : INT | FLOAT | IDENTIFIER | methodCall ;
 
 // Lexer Rules
 
