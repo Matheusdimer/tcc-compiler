@@ -6,16 +6,16 @@ class Hello {
     }
 
     methods {
-        int getIdade() {
+        getIdade(): int {
             return idade;
         }
 
-        int anosParaAposentar() {
+        anosParaAposentar(): int {
             int idadeAposentadoria = 60;
             return idadeAposentadoria - getIdade();
         }
 
-        string formatAposentadoria() {
+        formatAposentadoria(): string {
             return "Anos para se aposentar: " + anosParaAposentar();
         }
     }

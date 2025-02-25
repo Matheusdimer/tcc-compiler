@@ -13,7 +13,7 @@ varDeclaration
 methodsSection
               : METHODS LBRACE methodDeclaration* RBRACE ;
 methodDeclaration
-              : type IDENTIFIER LPAREN parameterList? RPAREN block ;
+              : IDENTIFIER LPAREN parameterList? RPAREN COLON type block ;
 
 parameterList : parameter (COMMA parameter)* ;
 parameter     : type IDENTIFIER ;
@@ -101,6 +101,7 @@ LBRACE        : '{' ;
 RBRACE        : '}' ;
 LPAREN        : '(' ;
 RPAREN        : ')' ;
+COLON         : ':' ;
 SEMICOLON     : ';' ;
 COMMA         : ',' ;
 ASSIGN        : '=' ;
