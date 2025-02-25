@@ -54,7 +54,7 @@ stringConcatenation
               : STRING (PLUS (literal | IDENTIFIER))+ ;
 
 numericExpression
-              : (INT | FLOAT | IDENTIFIER) (PLUS | MINUS | MULT | DIV) (INT | FLOAT | IDENTIFIER)* ;
+              : (operand | LBRACE numericExpression RBRACE) (PLUS | MINUS | MULT | DIV) (operand | LBRACE numericExpression RBRACE)* ;
 
 comparisonExpression
               : (INT | FLOAT | IDENTIFIER) (GT | LT | GTE | LTE | EQUAL | NOTEQUAL) (INT | FLOAT | IDENTIFIER) ;
@@ -73,6 +73,8 @@ type          : STRING_TYPE
               | INT_TYPE
               | FLOAT_TYPE
               | VOID_TYPE ;
+
+operand       : INT | FLOAT | IDENTIFIER ;
 
 // Lexer Rules
 

@@ -137,6 +137,55 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
         return null;
     }
 
+    @Override
+    public Void visitNumericExpression(SimpleLangParser.NumericExpressionContext ctx) {
+        visit(ctx.getChild(0));
+
+        for (int i = 1; i < ctx.getChildCount(); i += 2) {
+            visit(ctx.getChild(i + 1));
+            String operator = ctx.getChild(i).getText();
+            switch (operator) {
+                case "+":
+                    currentMethod.visitInsn(IADD);
+                    break;
+                case "-":
+                    currentMethod.visitInsn(ISUB);
+                    break;
+                case "*":
+                    currentMethod.visitInsn(IMUL);
+                    break;
+                case "/":
+                    currentMethod.visitInsn(IDIV);
+                    break;
+                default:
+                    throw new IllegalArgumentException("Operador não suportado: " + operator);
+            }
+        }
+
+        return null;
+    }
+
+    @Override
+    public Void visitOperand(SimpleLangParser.OperandContext ctx) {
+        if (ctx.IDENTIFIER() != null) {
+            String varName = ctx.IDENTIFIER().getText();
+            Variable variable = classVariables.get(varName);
+            if (variable == null) {
+                throw new IllegalArgumentException(String.format("Linha %d: variável %s não encontrada", ctx.start.getLine(), varName));
+            }
+
+            if ("string".equals(variable.type())) {
+                throw new IllegalArgumentException(String.format("Linha %d: variável %s do tipo string não pode ser usada em operação aritmética", ctx.start.getLine(), varName));
+            }
+
+            loadVariable(ctx, varName);
+        } else {
+            currentMethod.visitLdcInsn(getLiteralValue(ctx));
+        }
+
+        return null;
+    }
+
     /**
      * Método para compilar a concatenação de strings usando o StringBuilder.
      * Funciona apenas se a concatenação começar obrigatoriamente com um string literal.
@@ -180,7 +229,14 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
     private void executePrint(SimpleLangParser.StatementContext ctx) {
         currentMethod.visitFieldInsn(GETSTATIC, "java/lang/System", "out", "Ljava/io/PrintStream;");
         visit(ctx.expression());
-        currentMethod.visitMethodInsn(INVOKEVIRTUAL, "java/io/PrintStream", "println", "(Ljava/lang/String;)V", false);
+
+        String descriptor = Type.getMethodDescriptor(Type.VOID_TYPE, Type.getType(String.class));
+
+        if (ctx.expression().numericExpression() != null) {
+            descriptor = Type.getMethodDescriptor(Type.VOID_TYPE, Type.INT_TYPE);
+        }
+
+        currentMethod.visitMethodInsn(INVOKEVIRTUAL, "java/io/PrintStream", "println", descriptor, false);
     }
 
     private String determineDescriptor(ParserRuleContext ctx, String varName) {
@@ -237,6 +293,21 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
             throw new IllegalArgumentException("Literal desconhecido: " + ctx.getText());
         }
     }
+
+    private Object getLiteralValue(SimpleLangParser.OperandContext ctx) {
+        if (ctx == null) {
+            return null;
+        }
+
+        if (ctx.INT() != null) {
+            return Integer.parseInt(ctx.INT().getText());
+        } else if (ctx.FLOAT() != null) {
+            return Float.parseFloat(ctx.FLOAT().getText());
+        } else {
+            throw new IllegalArgumentException("Literal desconhecido: " + ctx.getText());
+        }
+    }
+
 
     private String getStringValue(String text) {
         return text.substring(1, text.length() - 1);
