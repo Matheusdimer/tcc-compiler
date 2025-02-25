@@ -133,9 +133,6 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
         try {
             if (ctx.getText().startsWith("print")) {
                 executePrint(ctx);
-            } else if (ctx.getText().startsWith("return")) {
-                visit(ctx.expression());
-                currentMethod.visitInsn(IRETURN);
             } else {
                 super.visitStatement(ctx);
             }
@@ -160,17 +157,34 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
         currentMethod = classWriter.visitMethod(ACC_PUBLIC, methodName, methodDescriptor, null, null);
         currentMethod.visitCode();
 
-        // TODO variáveis locais
+        var localVariableManager = new LocalVariableManager();
+        localVariablesStack.push(localVariableManager);
+
+        if (ctx.parameterList() != null) {
+            for (var paramContext : ctx.parameterList().parameter()) {
+                String paramName = paramContext.IDENTIFIER().getText();
+                String paramType = paramContext.type().getText();
+
+                localVariableManager.allocate(new Variable(paramName, paramType));
+            }
+        }
 
         visit(ctx.block());
 
-        if (methodReturnType.equals("void")) {
-            currentMethod.visitInsn(RETURN);
+        currentMethod.visitMaxs(0, 0); // Computado automaticamente pelo ASM
+
+        switch (methodReturnType) {
+            case TYPE_INT: currentMethod.visitInsn(IRETURN); break;
+            case TYPE_FLOAT: currentMethod.visitInsn(FRETURN); break;
+            case TYPE_STRING: currentMethod.visitInsn(ARETURN); break;
+            case TYPE_VOID: currentMethod.visitInsn(RETURN); break;
+            default: throw new IllegalArgumentException("Tipo de retorno desconhecido: " + methodReturnType + " para o método " + methodName);
         }
 
-        currentMethod.visitMaxs(0, 0); // Computado automaticamente pelo ASM
         currentMethod.visitEnd();
         currentMethod = null; // Reseta o `currentMethod` após o término
+
+        localVariablesStack.pop(); // Remove as variáveis locais do método da pilha após a compilação do método
 
         return null;
     }
@@ -179,13 +193,17 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
     public Void visitMethodCall(SimpleLangParser.MethodCallContext ctx) {
         String methodName = ctx.IDENTIFIER().getText();
 
+        String methodDescriptor = getMethod(ctx, methodName).descriptor();
+
+        // Primeiro parâmetro de uma chamada de método deve sempre ser o this
+        currentMethod.visitVarInsn(ALOAD, 0);
+
+        // Depois, são carregados os demais parâmetros na pilha conforme as expressões
         if (ctx.argumentList() != null) {
             ctx.argumentList().expression().forEach(this::visit);
         }
 
-        String methodDescriptor = getMethod(ctx, methodName).descriptor();
-
-        currentMethod.visitVarInsn(ALOAD, 0);
+        // Por fim a chamada do método
         currentMethod.visitMethodInsn(INVOKEVIRTUAL, className, methodName, methodDescriptor, false);
 
         return null;
@@ -336,11 +354,8 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
         currentMethod.visitFieldInsn(GETSTATIC, "java/lang/System", "out", "Ljava/io/PrintStream;");
         visit(ctx.expression());
 
-        String descriptor = Type.getMethodDescriptor(Type.VOID_TYPE, Type.getType(String.class));
-
-        if (ctx.expression().numericExpression() != null) {
-            descriptor = Type.getMethodDescriptor(Type.VOID_TYPE, Type.INT_TYPE);
-        }
+        String type = determineTypeOfExpression(ctx.expression());
+        String descriptor = Type.getMethodDescriptor(Type.VOID_TYPE, Type.getType(typeToDescriptor(type)));
 
         currentMethod.visitMethodInsn(INVOKEVIRTUAL, "java/io/PrintStream", "println", descriptor, false);
     }

@@ -10,6 +10,10 @@ class Hello {
             int idadeAposentadoria = 60;
             return idadeAposentadoria - idade;
         }
+
+        string formatAposentadoria(int anos) {
+            return "Anos para se aposentar: " + anos;
+        }
     }
 
     # Método construtor do objeto
@@ -19,6 +23,6 @@ class Hello {
 
         int anos = anosParaAposentar();
 
-        print("Anos para se aposentar: " + anos);
+        print(formatAposentadoria(anos));
     }
 }
