@@ -1,6 +1,8 @@
 package org.dimer.compiler;
 
 import org.antlr.v4.runtime.ParserRuleContext;
+import org.antlr.v4.runtime.tree.ParseTree;
+import org.antlr.v4.runtime.tree.TerminalNode;
 import org.dimer.SimpleLangBaseVisitor;
 import org.dimer.SimpleLangParser;
 import org.dimer.compiler.data.Variable;
@@ -154,10 +156,13 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
                 continue;
             }
 
-            if (child instanceof SimpleLangParser.StringOrIdentifierContext stringOrIdentifierContext) {
-                visit(stringOrIdentifierContext);
-                currentMethod.visitMethodInsn(INVOKEVIRTUAL, "java/lang/StringBuilder", "append", "(Ljava/lang/String;)Ljava/lang/StringBuilder;", false);
+            if (child instanceof SimpleLangParser.LiteralContext literalContext) {
+                currentMethod.visitLdcInsn(getLiteralValue(literalContext));
+            } else if (isAnIdentifier(child)) {
+                loadVariable(ctx, child.getText());
             }
+
+            currentMethod.visitMethodInsn(INVOKEVIRTUAL, "java/lang/StringBuilder", "append", "(Ljava/lang/String;)Ljava/lang/StringBuilder;", false);
         }
 
         currentMethod.visitMethodInsn(INVOKEVIRTUAL, "java/lang/StringBuilder", "toString", "()Ljava/lang/String;", false);
@@ -234,5 +239,9 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
 
     private String getStringValue(String text) {
         return text.substring(1, text.length() - 1);
+    }
+
+    private boolean isAnIdentifier(ParseTree child) {
+        return child instanceof TerminalNode && SimpleLangParser.IDENTIFIER == ((TerminalNode) child).getSymbol().getType();
     }
 }
