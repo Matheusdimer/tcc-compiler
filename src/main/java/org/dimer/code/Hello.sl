@@ -12,6 +12,6 @@ class Hello {
     # Método construtor do objeto
     init {
         print("Olá " + nome + ", você tem " + idade + " anos de idade.");
-        print(idade + 10);
+        print("Cálculo muito louco: " + (idade + 10.5 + (20 - 2)));
     }
 }

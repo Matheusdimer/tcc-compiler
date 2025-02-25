@@ -51,10 +51,13 @@ expression
               ;
 
 stringConcatenation
-              : STRING (PLUS (literal | IDENTIFIER))+ ;
+              : STRING (PLUS (literal | IDENTIFIER | involvedNumericExpression))+ ;
 
 numericExpression
-              : (operand | LBRACE numericExpression RBRACE) (PLUS | MINUS | MULT | DIV) (operand | LBRACE numericExpression RBRACE)* ;
+              : (operand | involvedNumericExpression) (PLUS | MINUS | MULT | DIV) (operand | involvedNumericExpression) ((PLUS | MINUS | MULT | DIV) (operand | involvedNumericExpression))* ;
+
+involvedNumericExpression
+              : LPAREN numericExpression RPAREN ;
 
 comparisonExpression
               : (INT | FLOAT | IDENTIFIER) (GT | LT | GTE | LTE | EQUAL | NOTEQUAL) (INT | FLOAT | IDENTIFIER) ;

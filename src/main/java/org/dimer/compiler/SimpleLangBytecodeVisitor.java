@@ -12,6 +12,7 @@ import org.objectweb.asm.Type;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Stack;
 
 import static org.objectweb.asm.Opcodes.*;
 
@@ -21,6 +22,8 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
     private final String className;
     private MethodVisitor currentMethod;
     private final Map<String, Variable> classVariables = new HashMap<>();
+    private boolean isFloatOperation = false;
+    private final Stack<Integer> numericExpressionStack = new Stack<>();
 
     public SimpleLangBytecodeVisitor(String className) {
         this.className = className;
@@ -116,7 +119,8 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
             }
         } catch (Exception e) {
             throw new RuntimeException(
-                    String.format("Erro ao processar uma declaração na linha %d: %s", ctx.start.getLine(), e.getMessage())
+                    String.format("Erro ao processar uma declaração na linha %d: %s", ctx.start.getLine(), e.getMessage()),
+                    e
             );
         }
 
@@ -139,6 +143,13 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
 
     @Override
     public Void visitNumericExpression(SimpleLangParser.NumericExpressionContext ctx) {
+        // Gambiarra para caso alguma expressão pai tiver float, não sobrescrever o valor
+        if (numericExpressionStack.isEmpty() || !isFloatOperation) {
+            isFloatOperation = isFloatOperation(ctx);
+        }
+
+        numericExpressionStack.push(0);
+
         visit(ctx.getChild(0));
 
         for (int i = 1; i < ctx.getChildCount(); i += 2) {
@@ -146,16 +157,16 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
             String operator = ctx.getChild(i).getText();
             switch (operator) {
                 case "+":
-                    currentMethod.visitInsn(IADD);
+                    currentMethod.visitInsn(isFloatOperation ? FADD : IADD);
                     break;
                 case "-":
-                    currentMethod.visitInsn(ISUB);
+                    currentMethod.visitInsn(isFloatOperation ? FSUB : ISUB);
                     break;
                 case "*":
-                    currentMethod.visitInsn(IMUL);
+                    currentMethod.visitInsn(isFloatOperation ? FMUL : IMUL);
                     break;
                 case "/":
-                    currentMethod.visitInsn(IDIV);
+                    currentMethod.visitInsn(isFloatOperation ? FDIV : IDIV);
                     break;
                 default:
                     throw new IllegalArgumentException("Operador não suportado: " + operator);
@@ -166,21 +177,32 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
     }
 
     @Override
+    public Void visitInvolvedNumericExpression(SimpleLangParser.InvolvedNumericExpressionContext ctx) {
+        visit(ctx.numericExpression());
+        return null;
+    }
+
+    @Override
     public Void visitOperand(SimpleLangParser.OperandContext ctx) {
         if (ctx.IDENTIFIER() != null) {
             String varName = ctx.IDENTIFIER().getText();
-            Variable variable = classVariables.get(varName);
-            if (variable == null) {
-                throw new IllegalArgumentException(String.format("Linha %d: variável %s não encontrada", ctx.start.getLine(), varName));
-            }
+            Variable variable = getVariable(ctx, varName);
 
             if ("string".equals(variable.type())) {
                 throw new IllegalArgumentException(String.format("Linha %d: variável %s do tipo string não pode ser usada em operação aritmética", ctx.start.getLine(), varName));
             }
 
             loadVariable(ctx, varName);
+
+            // Caso a operação atual esteja lidando com floats, deve ser feita a conversão de todos os inteiros para float
+            if (isFloatOperation && "int".equals(variable.type())) {
+                currentMethod.visitInsn(I2F);
+            }
         } else {
             currentMethod.visitLdcInsn(getLiteralValue(ctx));
+            if (isFloatOperation && ctx.INT() != null) {
+                currentMethod.visitInsn(I2F); // Converte int pra float
+            }
         }
 
         return null;
@@ -213,6 +235,9 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
             } else if (isAnIdentifier(child)) {
                 loadVariable(ctx, child.getText());
                 descriptor = determineDescriptor(ctx, child.getText());
+            } else if (child instanceof SimpleLangParser.InvolvedNumericExpressionContext involvedNumericExpressionContext) {
+                visit(involvedNumericExpressionContext);
+                descriptor = isFloatOperation ? Type.FLOAT_TYPE.getDescriptor() : Type.INT_TYPE.getDescriptor();
             }
 
             currentMethod.visitMethodInsn(INVOKEVIRTUAL, "java/lang/StringBuilder", "append", "(" + descriptor + ")Ljava/lang/StringBuilder;", false);
@@ -240,13 +265,7 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
     }
 
     private String determineDescriptor(ParserRuleContext ctx, String varName) {
-        var variable = classVariables.get(varName);
-
-        if (variable == null) {
-            throw new IllegalArgumentException(String.format("Linha %d: Variável %s não encontrada", ctx.start.getLine(), varName));
-        }
-
-        return typeToDescriptor(variable.type());
+        return typeToDescriptor(getVariable(ctx, varName).type());
     }
 
     private String determineDescriptor(SimpleLangParser.LiteralContext ctx) {
@@ -316,4 +335,45 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
     private boolean isAnIdentifier(ParseTree child) {
         return child instanceof TerminalNode && SimpleLangParser.IDENTIFIER == ((TerminalNode) child).getSymbol().getType();
     }
+
+    private boolean isFloatOperation(SimpleLangParser.NumericExpressionContext ctx) {
+        // Verifica se algum dos operandos é um float
+        for (int i = 0; i < ctx.getChildCount(); i += 2) {
+            ParseTree operand = ctx.getChild(i);
+            if (isFloatOperand(operand)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isFloatOperand(ParseTree operand) {
+        if (operand instanceof SimpleLangParser.OperandContext ctx) {
+            if (ctx.FLOAT() != null) {
+                return true;
+            }
+
+            if (ctx.IDENTIFIER() != null) {
+                Variable variable = getVariable(ctx, ctx.IDENTIFIER().getText());
+                return "float".equals(variable.type());
+            }
+        }
+
+        if (operand instanceof SimpleLangParser.InvolvedNumericExpressionContext ctx) {
+            return isFloatOperand(ctx.numericExpression());
+        }
+
+        return false;
+    }
+
+    private Variable getVariable(ParserRuleContext ctx, String varName) {
+        var variable = classVariables.get(varName);
+
+        if (variable == null) {
+            throw new IllegalArgumentException(String.format("Linha %d: Variável %s não encontrada", ctx.start.getLine(), varName));
+        }
+
+        return variable;
+    }
+
 }
