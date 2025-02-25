@@ -145,6 +145,39 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
     }
 
     @Override
+    public Void visitReadStatement(SimpleLangParser.ReadStatementContext ctx) {
+        String varName = ctx.IDENTIFIER().getText();
+        Variable variable = getVariable(ctx, varName);
+
+        // Gere instruções para capturar entrada do console
+        currentMethod.visitTypeInsn(NEW, "java/util/Scanner");
+        currentMethod.visitInsn(DUP);
+        currentMethod.visitFieldInsn(GETSTATIC, "java/lang/System", "in", "Ljava/io/InputStream;");
+        currentMethod.visitMethodInsn(INVOKESPECIAL, "java/util/Scanner", "<init>", "(Ljava/io/InputStream;)V", false);
+
+        switch (variable.type()) {
+            case TYPE_STRING -> executeReadLine();
+            case TYPE_INT -> {
+                executeReadLine();
+                currentMethod.visitMethodInsn(INVOKESTATIC, "java/lang/Integer", "parseInt", "(Ljava/lang/String;)I", false);
+            }
+            case TYPE_FLOAT -> {
+                executeReadLine();
+                currentMethod.visitMethodInsn(INVOKESTATIC, "java/lang/Float", "parseFloat", "(Ljava/lang/String;)F", false);
+            }
+            case null, default ->
+                    throw new UnsupportedOperationException("Tipo de variável não suportado para leitura: " + variable.type());
+        }
+
+        storeVariable(ctx, varName);
+        return null;
+    }
+
+    private void executeReadLine() {
+        currentMethod.visitMethodInsn(INVOKEVIRTUAL, "java/util/Scanner", "nextLine", "()Ljava/lang/String;", false);
+    }
+
+    @Override
     public Void visitMethodDeclaration(SimpleLangParser.MethodDeclarationContext ctx) {
         String methodName = ctx.IDENTIFIER().getText();
         String methodReturnType = ctx.type().getText();
@@ -359,6 +392,28 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
     private void loadClassVariable(ParserRuleContext ctx, String varName) {
         currentMethod.visitVarInsn(ALOAD, 0); // Carrega 'this'
         currentMethod.visitFieldInsn(GETFIELD, className, varName, determineDescriptor(ctx, varName)); // Pega o atributo
+    }
+
+    private void storeVariable(ParserRuleContext ctx, String varName) {
+        if (!localVariablesStack.isEmpty()) {
+            var manager = localVariablesStack.peek();
+            var variable = manager.load(varName);
+
+            if (variable != null) {
+                currentMethod.visitVarInsn(determineStoreCommand(variable.type()), variable.index());
+                return;
+            }
+        }
+
+        storeClassVariable(ctx, varName);
+    }
+
+    private void storeClassVariable(ParserRuleContext ctx, String varName) {
+        currentMethod.visitVarInsn(ALOAD, 0); // Carrega 'this'
+        // Pega o this que está no topo da pilha e troca com o elemento abaixo que seria o valor carregado,
+        // pois a ordem dos parâmetros na pilha deve ser this -> valor (topo)
+        currentMethod.visitInsn(SWAP);
+        currentMethod.visitFieldInsn(PUTFIELD, className, varName, determineDescriptor(ctx, varName)); // Armazena no atributo
     }
 
     private String determineDescriptor(ParserRuleContext ctx, String varName) {
