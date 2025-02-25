@@ -5,6 +5,7 @@ import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.dimer.SimpleLangBaseVisitor;
 import org.dimer.SimpleLangParser;
+import org.dimer.compiler.data.Method;
 import org.dimer.compiler.data.Variable;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.MethodVisitor;
@@ -22,6 +23,7 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
     private final String className;
     private MethodVisitor currentMethod;
     private final Map<String, Variable> classVariables = new HashMap<>();
+    private final Map<String, Method> methods = new HashMap<>();
     private boolean isFloatOperation = false;
     private final Stack<Integer> numericExpressionStack = new Stack<>();
 
@@ -128,13 +130,53 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
     }
 
     @Override
+    public Void visitMethodDeclaration(SimpleLangParser.MethodDeclarationContext ctx) {
+        String methodName = ctx.IDENTIFIER().getText();
+        String methodReturnType = ctx.type().getText();
+        String methodDescriptor = buildMethodDescriptor(ctx.parameterList(), methodReturnType);
+        
+        methods.put(methodName, new Method(methodName, methodReturnType, methodDescriptor));
+        
+        currentMethod = classWriter.visitMethod(ACC_PUBLIC, methodName, methodDescriptor, null, null);
+        currentMethod.visitCode();
+
+        // TODO variáveis locais
+
+        visit(ctx.block());
+
+        if (methodReturnType.equals("void")) {
+            currentMethod.visitInsn(RETURN);
+        }
+
+        currentMethod.visitMaxs(0, 0); // Computado automaticamente pelo ASM
+        currentMethod.visitEnd();
+        currentMethod = null; // Reseta o `currentMethod` após o término
+
+        return null;
+    }
+
+    @Override
+    public Void visitMethodCall(SimpleLangParser.MethodCallContext ctx) {
+        String methodName = ctx.IDENTIFIER().getText();
+
+        if (ctx.argumentList() != null) {
+            ctx.argumentList().expression().forEach(this::visit);
+        }
+
+        String methodDescriptor = getMethod(ctx, methodName).descriptor();
+
+        currentMethod.visitVarInsn(ALOAD, 0);
+        currentMethod.visitMethodInsn(INVOKEVIRTUAL, className, methodName, methodDescriptor, false);
+
+        return null;
+    }
+
+    @Override
     public Void visitExpression(SimpleLangParser.ExpressionContext ctx) {
         if (ctx.literal() != null) {
             currentMethod.visitLdcInsn(getLiteralValue(ctx.literal()));
         } else if (ctx.IDENTIFIER() != null) { // Aponta para uma variável
             loadVariable(ctx, ctx.IDENTIFIER().getText());
-        } else if (ctx.stringConcatenation() != null) {
-            executeStringConcatenation(ctx.stringConcatenation());
         } else {
             super.visitExpression(ctx); // Processa demais expressões normalmente
         }
@@ -212,7 +254,8 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
      * Método para compilar a concatenação de strings usando o StringBuilder.
      * Funciona apenas se a concatenação começar obrigatoriamente com um string literal.
      */
-    private void executeStringConcatenation(SimpleLangParser.StringConcatenationContext ctx) {
+    @Override
+    public Void visitStringConcatenation(SimpleLangParser.StringConcatenationContext ctx) {
         currentMethod.visitTypeInsn(NEW, "java/lang/StringBuilder");
         currentMethod.visitInsn(DUP); // Duplica a referência no topo da pilha para usá-la duas vezes (problema de referência única)
         currentMethod.visitMethodInsn(INVOKESPECIAL, "java/lang/StringBuilder", "<init>", "()V", false);
@@ -238,12 +281,16 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
             } else if (child instanceof SimpleLangParser.InvolvedNumericExpressionContext involvedNumericExpressionContext) {
                 visit(involvedNumericExpressionContext);
                 descriptor = isFloatOperation ? Type.FLOAT_TYPE.getDescriptor() : Type.INT_TYPE.getDescriptor();
+            } else if (child instanceof SimpleLangParser.MethodCallContext methodCallContext) {
+                visit(methodCallContext);
+                descriptor = typeToDescriptor(getMethod(methodCallContext, methodCallContext.IDENTIFIER().getText()).returnType());
             }
 
             currentMethod.visitMethodInsn(INVOKEVIRTUAL, "java/lang/StringBuilder", "append", "(" + descriptor + ")Ljava/lang/StringBuilder;", false);
         }
 
         currentMethod.visitMethodInsn(INVOKEVIRTUAL, "java/lang/StringBuilder", "toString", "()Ljava/lang/String;", false);
+        return null;
     }
 
     private void loadVariable(ParserRuleContext ctx, String varName) {
@@ -376,4 +423,30 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
         return variable;
     }
 
+    private String buildMethodDescriptor(SimpleLangParser.ParameterListContext parameterListCtx, String returnType) {
+        StringBuilder descriptor = new StringBuilder();
+        descriptor.append("("); // Início da lista de parâmetros
+
+        if (parameterListCtx != null) {
+            for (var paramCtx : parameterListCtx.parameter()) {
+                String paramType = paramCtx.type().getText();
+                descriptor.append(typeToDescriptor(paramType)); // Converte o tipo para o descriptor ASM
+            }
+        }
+
+        descriptor.append(")");
+        descriptor.append(typeToDescriptor(returnType)); // Tipo de retorno
+
+        return descriptor.toString();
+    }
+
+    private Method getMethod(ParserRuleContext ctx, String methodName) {
+        var method = methods.get(methodName);
+
+        if (method == null) {
+            throw new IllegalArgumentException(String.format("Linha %d: Método %s não encontrado", ctx.start.getLine(), methodName));
+        }
+
+        return method;
+    }
 }
