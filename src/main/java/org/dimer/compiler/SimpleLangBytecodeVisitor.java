@@ -427,10 +427,16 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
         Label thenLabel = new Label(); // Marcação para o bloco de código caso o if dê true
         Label endLabel = new Label(); // Marcação para o final do bloco do if
 
-        Integer instruction = OPERATORS_INSTRUCTIONS.get(ctx.expression().comparisonExpression().getChild(1).getText());
+        Integer instruction;
 
-        if (instruction == null) {
-            throw new IllegalArgumentException(String.format("Linha %d: operador %s não compatível", ctx.start.getLine(), ctx.expression().getText()));
+        if (ctx.expression().comparisonExpression() != null) {
+            instruction = OPERATORS_INSTRUCTIONS.get(ctx.expression().comparisonExpression().getChild(1).getText());
+
+            if (instruction == null) {
+                throw new IllegalArgumentException(String.format("Linha %d: operador %s não compatível", ctx.start.getLine(), ctx.expression().getText()));
+            }
+        } else {
+            instruction = IFNE;
         }
 
         // Exemplo: Instrução de comparação de int GT (greater than), se retornar true (1),
@@ -461,10 +467,26 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
         return null;
     }
 
-
     @Override
     public Void visitComparisonStringExpression(SimpleLangParser.ComparisonStringExpressionContext ctx) {
-        return super.visitComparisonStringExpression(ctx);
+        String string1 = ctx.getChild(0).getText();
+        String string2 = ctx.getChild(2).getText();
+
+        loadString(ctx, string1);
+        loadString(ctx, string2);
+
+        currentMethod.visitMethodInsn(INVOKEVIRTUAL, "java/lang/String", "equals", "(Ljava/lang/Object;)Z", false);
+
+        return null;
+    }
+
+    private void loadString(SimpleLangParser.ComparisonStringExpressionContext ctx, String string) {
+        if (string.startsWith("\"")) {
+            String stringValue = getStringValue(string);
+            currentMethod.visitLdcInsn(stringValue);
+        } else {
+            loadVariable(ctx, string);
+        }
     }
 
     @Override
