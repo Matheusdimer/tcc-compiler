@@ -8,6 +8,7 @@ import org.dimer.SimpleLangParser;
 import org.dimer.compiler.data.Variable;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.MethodVisitor;
+import org.objectweb.asm.Type;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -151,6 +152,7 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
 
         for (int i = 1; i < ctx.getChildCount(); i++) {
             var child = ctx.getChild(i);
+            var descriptor = "Ljava/lang/String;";
 
             if (child.getText().equals("+")) {
                 continue;
@@ -158,11 +160,13 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
 
             if (child instanceof SimpleLangParser.LiteralContext literalContext) {
                 currentMethod.visitLdcInsn(getLiteralValue(literalContext));
+                descriptor = determineDescriptor(literalContext);
             } else if (isAnIdentifier(child)) {
                 loadVariable(ctx, child.getText());
+                descriptor = determineDescriptor(ctx, child.getText());
             }
 
-            currentMethod.visitMethodInsn(INVOKEVIRTUAL, "java/lang/StringBuilder", "append", "(Ljava/lang/String;)Ljava/lang/StringBuilder;", false);
+            currentMethod.visitMethodInsn(INVOKEVIRTUAL, "java/lang/StringBuilder", "append", "(" + descriptor + ")Ljava/lang/StringBuilder;", false);
         }
 
         currentMethod.visitMethodInsn(INVOKEVIRTUAL, "java/lang/StringBuilder", "toString", "()Ljava/lang/String;", false);
@@ -185,7 +189,7 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
 
     private void loadVariable(ParserRuleContext ctx, String varName) {
         currentMethod.visitVarInsn(ALOAD, 0); // Carrega 'this'
-        currentMethod.visitFieldInsn(GETFIELD, className, varName, determineDescriptor(varName, ctx)); // Pega o atributo
+        currentMethod.visitFieldInsn(GETFIELD, className, varName, determineDescriptor(ctx, varName)); // Pega o atributo
     }
 
     private void executePrint(SimpleLangParser.StatementContext ctx) {
@@ -194,7 +198,7 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
         currentMethod.visitMethodInsn(INVOKEVIRTUAL, "java/io/PrintStream", "println", "(Ljava/lang/String;)V", false);
     }
 
-    private String determineDescriptor(String varName, ParserRuleContext ctx) {
+    private String determineDescriptor(ParserRuleContext ctx, String varName) {
         var variable = classVariables.get(varName);
 
         if (variable == null) {
@@ -202,6 +206,18 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
         }
 
         return typeToDescriptor(variable.type());
+    }
+
+    private String determineDescriptor(SimpleLangParser.LiteralContext ctx) {
+        if (ctx.INT() != null) {
+            return Type.INT_TYPE.getDescriptor();
+        } else if (ctx.FLOAT() != null) {
+            return Type.FLOAT_TYPE.getDescriptor();
+        } else if (ctx.STRING() != null) {
+            return Type.getType(String.class).getDescriptor();
+        } else {
+            throw new IllegalArgumentException("Literal desconhecido: " + ctx.getText());
+        }
     }
 
     /**
