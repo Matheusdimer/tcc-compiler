@@ -44,17 +44,17 @@ expression
               | numericExpression
               | comparisonExpression
               | comparisonStringExpression
-              | parenthesizedExpression
+              | involvedExpression
               | methodCall
               | IDENTIFIER
               | literal
               ;
 
 stringConcatenation
-              : STRING (PLUS (literal | IDENTIFIER | involvedNumericExpression))+ ;
+              : STRING (PLUS (literal | IDENTIFIER | involvedNumericExpression |))+ ;
 
 numericExpression
-              : (operand | involvedNumericExpression) (PLUS | MINUS | MULT | DIV) (operand | involvedNumericExpression) ((PLUS | MINUS | MULT | DIV) (operand | involvedNumericExpression))* ;
+              : (operand | involvedNumericExpression) ((PLUS | MINUS | MULT | DIV) (operand | involvedNumericExpression))+ ;
 
 involvedNumericExpression
               : LPAREN numericExpression RPAREN ;
@@ -65,7 +65,7 @@ comparisonExpression
 comparisonStringExpression
               : (STRING | IDENTIFIER) (EQUAL (STRING | IDENTIFIER))+ ;
 
-parenthesizedExpression
+involvedExpression
               : LPAREN expression RPAREN ;
 
 literal       : STRING
