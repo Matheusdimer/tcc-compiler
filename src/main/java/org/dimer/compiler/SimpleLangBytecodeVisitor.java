@@ -306,7 +306,7 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
             loadVariable(ctx, varName);
 
             // Caso a operação atual esteja lidando com floats, deve ser feita a conversão de todos os inteiros para float
-            if (isFloatOperation && "int".equals(variable.type())) {
+            if (isFloatOperation && TYPE_INT.equals(variable.type())) {
                 currentMethod.visitInsn(I2F);
             }
         } else if (ctx.methodCall() != null) {
@@ -507,7 +507,7 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
 
             if (ctx.IDENTIFIER() != null) {
                 Variable variable = getVariable(ctx, ctx.IDENTIFIER().getText());
-                return "float".equals(variable.type());
+                return TYPE_FLOAT.equals(variable.type());
             }
         }
 
