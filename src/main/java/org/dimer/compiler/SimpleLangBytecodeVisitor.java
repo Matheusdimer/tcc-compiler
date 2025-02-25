@@ -7,6 +7,7 @@ import org.dimer.SimpleLangBaseVisitor;
 import org.dimer.SimpleLangParser;
 import org.dimer.compiler.data.Method;
 import org.dimer.compiler.data.Variable;
+import org.dimer.compiler.util.LocalVariableManager;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Type;
@@ -15,6 +16,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Stack;
 
+import static org.dimer.compiler.util.CompilerConstants.*;
 import static org.objectweb.asm.Opcodes.*;
 
 public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
@@ -26,6 +28,7 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
     private final Map<String, Method> methods = new HashMap<>();
     private boolean isFloatOperation = false;
     private final Stack<Integer> numericExpressionStack = new Stack<>();
+    private final Stack<LocalVariableManager> localVariablesStack = new Stack<>();
 
     public SimpleLangBytecodeVisitor(String className) {
         this.className = className;
@@ -62,7 +65,24 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
             var value  = ctx.expression() != null ? getLiteralValue(ctx.expression().literal()) : null;
             classVariables.put(varName, new Variable(varName, varType, value));
         } else {
-            // TODO variável local
+            if (localVariablesStack.isEmpty()) {
+                localVariablesStack.push(new LocalVariableManager());
+            }
+
+            LocalVariableManager manager = localVariablesStack.peek();
+            int varIndex = manager.allocate(new Variable(varName, varType));
+
+            if (ctx.expression() != null) {
+                visit(ctx.expression());
+
+                String type = determineTypeOfExpression(ctx.expression());
+                if (!varType.equals(type)) {
+                    throw new IllegalArgumentException(String.format("Linha %d: tipo de retorno %s da expressão %s não compatível com tipo %s da variável %s",
+                            ctx.start.getLine(), type, ctx.expression().getText(), varType, varName));
+                }
+
+                currentMethod.visitVarInsn(determineStoreCommand(type), varIndex);
+            }
         }
 
         return null;
@@ -294,6 +314,20 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
     }
 
     private void loadVariable(ParserRuleContext ctx, String varName) {
+        if (!localVariablesStack.isEmpty()) {
+            var manager = localVariablesStack.peek();
+            var variable = manager.load(varName);
+
+            if (variable != null) {
+                currentMethod.visitVarInsn(determineLoadCommand(variable.type()), variable.index());
+                return;
+            }
+        }
+
+        loadClassVariable(ctx, varName);
+    }
+
+    private void loadClassVariable(ParserRuleContext ctx, String varName) {
         currentMethod.visitVarInsn(ALOAD, 0); // Carrega 'this'
         currentMethod.visitFieldInsn(GETFIELD, className, varName, determineDescriptor(ctx, varName)); // Pega o atributo
     }
@@ -414,6 +448,14 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
     }
 
     private Variable getVariable(ParserRuleContext ctx, String varName) {
+        if (!localVariablesStack.isEmpty()) {
+            var variable = localVariablesStack.peek().load(varName);
+
+            if (variable != null) {
+                return variable;
+            }
+        }
+
         var variable = classVariables.get(varName);
 
         if (variable == null) {
@@ -448,5 +490,71 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
         }
 
         return method;
+    }
+
+    private int determineStoreCommand(String type) {
+        return switch (type) {
+            case TYPE_INT -> ISTORE;
+            case TYPE_FLOAT -> FSTORE;
+            case TYPE_STRING -> ASTORE;
+            default -> throw new IllegalArgumentException("Tipo desconhecido: " + type);
+        };
+    }
+
+    private int determineLoadCommand(String type) {
+        return switch (type) {
+            case TYPE_INT -> ILOAD;
+            case TYPE_FLOAT -> FLOAD;
+            case TYPE_STRING -> ALOAD;
+            default -> throw new IllegalArgumentException("Tipo desconhecido: " + type);
+        };
+    }
+
+    private String determineTypeOfExpression(SimpleLangParser.ExpressionContext ctx) {
+        if (ctx.stringConcatenation() != null) {
+            return TYPE_STRING;
+        }
+
+        if (ctx.numericExpression() != null) {
+            return isFloatOperation ? TYPE_FLOAT : TYPE_INT;
+        }
+
+        if (ctx.involvedExpression() != null) {
+            return determineTypeOfExpression(ctx.involvedExpression().expression());
+        }
+
+        if (ctx.IDENTIFIER() != null) {
+            return getVariable(ctx, ctx.IDENTIFIER().getText()).type();
+        }
+
+        if (ctx.methodCall() != null) {
+            String methodName = ctx.methodCall().IDENTIFIER().getText();
+            Method method = getMethod(ctx.methodCall(), methodName);
+            return method.returnType();
+        }
+
+        if (ctx.literal() != null) {
+            return determineLiteralType(ctx.literal());
+        }
+
+        throw new IllegalArgumentException(String.format("Linha %d: não foi possível determinar o tipo de retorno da expressão %s",
+                ctx.start.getLine(), ctx.getText()));
+    }
+
+    private String determineLiteralType(SimpleLangParser.LiteralContext ctx) {
+        if (ctx == null) {
+            return null;
+        }
+
+        if (ctx.INT() != null) {
+            return TYPE_INT;
+        } else if (ctx.FLOAT() != null) {
+            return TYPE_FLOAT;
+        } else if (ctx.STRING() != null) {
+            return TYPE_STRING;
+        } else {
+            throw new IllegalArgumentException(String.format("Linha %d: não foi possível determinar o tipo de retorno da expressão %s",
+                    ctx.start.getLine(), ctx.getText()));
+        }
     }
 }
