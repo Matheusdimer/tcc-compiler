@@ -172,21 +172,6 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
         currentMethod.visitMethodInsn(INVOKEVIRTUAL, "java/lang/StringBuilder", "toString", "()Ljava/lang/String;", false);
     }
 
-    /**
-     * Método utilizado no contexto de concatenação de string para fazer o load de uma string ou variável para
-     * concatenação via append
-     */
-    @Override
-    public Void visitStringOrIdentifier(SimpleLangParser.StringOrIdentifierContext ctx) {
-        if (ctx.STRING() != null) {
-            currentMethod.visitLdcInsn(getStringValue(ctx.STRING().getText()));
-        } else if (ctx.IDENTIFIER() != null) {
-            loadVariable(ctx, ctx.IDENTIFIER().getText());
-        }
-
-        return null;
-    }
-
     private void loadVariable(ParserRuleContext ctx, String varName) {
         currentMethod.visitVarInsn(ALOAD, 0); // Carrega 'this'
         currentMethod.visitFieldInsn(GETFIELD, className, varName, determineDescriptor(ctx, varName)); // Pega o atributo
