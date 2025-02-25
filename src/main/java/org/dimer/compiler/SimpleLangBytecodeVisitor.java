@@ -125,9 +125,7 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
         if (ctx.literal() != null) {
             currentMethod.visitLdcInsn(getLiteralValue(ctx.literal()));
         } else if (ctx.IDENTIFIER() != null) { // Aponta para uma variável
-            String varName = ctx.IDENTIFIER().getText();
-            currentMethod.visitVarInsn(ALOAD, 0); // Carrega 'this'
-            currentMethod.visitFieldInsn(GETFIELD, className, varName, determineDescriptor(varName, ctx)); // Pega o atributo
+            loadVariable(ctx, ctx.IDENTIFIER().getText());
         } else if (ctx.stringConcatenation() != null) {
             executeStringConcatenation(ctx.stringConcatenation());
         } else {
@@ -145,23 +143,44 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
         currentMethod.visitInsn(DUP); // Duplica a referência no topo da pilha para usá-la duas vezes (problema de referência única)
         currentMethod.visitMethodInsn(INVOKESPECIAL, "java/lang/StringBuilder", "<init>", "()V", false);
 
-        for (int i = 0; i < ctx.getChildCount(); i++) {
+        // Toda concatenação começa com uma string literal, então será adicionada na pilha automaticamente
+        currentMethod.visitLdcInsn(getStringValue(ctx.STRING().getText()));
+        currentMethod.visitMethodInsn(INVOKEVIRTUAL, "java/lang/StringBuilder", "append", "(Ljava/lang/String;)Ljava/lang/StringBuilder;", false);
+
+        for (int i = 1; i < ctx.getChildCount(); i++) {
             var child = ctx.getChild(i);
 
             if (child.getText().equals("+")) {
                 continue;
             }
 
-            if (child instanceof SimpleLangParser.LiteralContext literalContext) {
-                currentMethod.visitLdcInsn(getLiteralValue(literalContext));
-            } else if (child instanceof SimpleLangParser.ExpressionContext expressionContext) {
-                visit(expressionContext);
+            if (child instanceof SimpleLangParser.StringOrIdentifierContext stringOrIdentifierContext) {
+                visit(stringOrIdentifierContext);
+                currentMethod.visitMethodInsn(INVOKEVIRTUAL, "java/lang/StringBuilder", "append", "(Ljava/lang/String;)Ljava/lang/StringBuilder;", false);
             }
-
-            currentMethod.visitMethodInsn(INVOKEVIRTUAL, "java/lang/StringBuilder", "append", "(Ljava/lang/String;)Ljava/lang/StringBuilder;", false);
         }
 
         currentMethod.visitMethodInsn(INVOKEVIRTUAL, "java/lang/StringBuilder", "toString", "()Ljava/lang/String;", false);
+    }
+
+    /**
+     * Método utilizado no contexto de concatenação de string para fazer o load de uma string ou variável para
+     * concatenação via append
+     */
+    @Override
+    public Void visitStringOrIdentifier(SimpleLangParser.StringOrIdentifierContext ctx) {
+        if (ctx.STRING() != null) {
+            currentMethod.visitLdcInsn(getStringValue(ctx.STRING().getText()));
+        } else if (ctx.IDENTIFIER() != null) {
+            loadVariable(ctx, ctx.IDENTIFIER().getText());
+        }
+
+        return null;
+    }
+
+    private void loadVariable(ParserRuleContext ctx, String varName) {
+        currentMethod.visitVarInsn(ALOAD, 0); // Carrega 'this'
+        currentMethod.visitFieldInsn(GETFIELD, className, varName, determineDescriptor(varName, ctx)); // Pega o atributo
     }
 
     private void executePrint(SimpleLangParser.StatementContext ctx) {
@@ -207,9 +226,13 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
         } else if (ctx.FLOAT() != null) {
             return Float.parseFloat(ctx.FLOAT().getText());
         } else if (ctx.STRING() != null) {
-            return ctx.STRING().getText().substring(1, ctx.STRING().getText().length() - 1);
+            return getStringValue(ctx.STRING().getText());
         } else {
             throw new IllegalArgumentException("Literal desconhecido: " + ctx.getText());
         }
+    }
+
+    private String getStringValue(String text) {
+        return text.substring(1, text.length() - 1);
     }
 }

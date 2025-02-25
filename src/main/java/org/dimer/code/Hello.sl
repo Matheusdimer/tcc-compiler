@@ -11,6 +11,6 @@ class Hello {
 
     # Método construtor do objeto
     init {
-        print("Olá" + nome);
+        print("Olá " + nome);
     }
 }

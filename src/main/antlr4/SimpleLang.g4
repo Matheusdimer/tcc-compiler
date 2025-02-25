@@ -51,7 +51,7 @@ expression
               ;
 
 stringConcatenation
-              : STRING (PLUS (STRING | IDENTIFIER))+ ;
+              : STRING (PLUS stringOrIdentifier)+ ;
 
 numericExpression
               : (INT | FLOAT | IDENTIFIER) (PLUS | MINUS | MULT | DIV) (INT | FLOAT | IDENTIFIER)* ;
@@ -60,7 +60,7 @@ comparisonExpression
               : (INT | FLOAT | IDENTIFIER) (GT | LT | GTE | LTE | EQUAL | NOTEQUAL) (INT | FLOAT | IDENTIFIER) ;
 
 comparisonStringExpression
-              : (STRING | IDENTIFIER) (EQUAL (STRING | IDENTIFIER))+ ;
+              : stringOrIdentifier (EQUAL stringOrIdentifier)+ ;
 
 parenthesizedExpression
               : LPAREN expression RPAREN ;
@@ -68,6 +68,9 @@ parenthesizedExpression
 literal       : STRING
               | INT
               | FLOAT ;
+
+stringOrIdentifier
+              : STRING | IDENTIFIER ;
 
 type          : STRING_TYPE
               | INT_TYPE
