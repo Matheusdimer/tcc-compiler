@@ -51,7 +51,7 @@ expression
               ;
 
 stringConcatenation
-              : STRING (PLUS (literal | IDENTIFIER | involvedNumericExpression |))+ ;
+              : STRING (PLUS (literal | IDENTIFIER | involvedNumericExpression | methodCall))+ ;
 
 numericExpression
               : (operand | involvedNumericExpression) ((PLUS | MINUS | MULT | DIV) (operand | involvedNumericExpression))+ ;
