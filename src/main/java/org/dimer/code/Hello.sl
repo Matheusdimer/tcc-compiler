@@ -20,7 +20,13 @@ class Hello {
         }
 
         formatAposentadoria(): string {
-            return "Anos para se aposentar: " + anosParaAposentar();
+            int anos = anosParaAposentar();
+
+            if (anos == 0) {
+                return "Parabéns, você está aposentado.";
+            }
+
+            return "Anos para se aposentar: " + anos;
         }
     }
 

@@ -427,8 +427,15 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
         Label thenLabel = new Label(); // Marcação para o bloco de código caso o if dê true
         Label endLabel = new Label(); // Marcação para o final do bloco do if
 
-        // Instrução de comparação de int GT (greater than), se retornar true (1), faz o jump para o label do bloco then
-        currentMethod.visitJumpInsn(IF_ICMPGT, thenLabel);
+        Integer instruction = OPERATORS_INSTRUCTIONS.get(ctx.expression().comparisonExpression().getChild(1).getText());
+
+        if (instruction == null) {
+            throw new IllegalArgumentException(String.format("Linha %d: operador %s não compatível", ctx.start.getLine(), ctx.expression().getText()));
+        }
+
+        // Exemplo: Instrução de comparação de int GT (greater than), se retornar true (1),
+        // faz o jump para o label do bloco then
+        currentMethod.visitJumpInsn(instruction, thenLabel);
 
         // Após à execução do bloco then, volta e da jump para o final do if
         currentMethod.visitJumpInsn(GOTO, endLabel);

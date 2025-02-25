@@ -19,4 +19,13 @@ public class CompilerConstants {
     public static final String OPERATOR_LTE = "<=";
     public static final String OPERATOR_EQUAL = "==";
     public static final String OPERATOR_NOTEQUAL = "!=";
+
+    public static final Map<String, Integer> OPERATORS_INSTRUCTIONS = Map.of(
+            OPERATOR_GT, IF_ICMPGT,
+            OPERATOR_LT, IF_ICMPLT,
+            OPERATOR_GTE, IF_ICMPGE,
+            OPERATOR_LTE, IF_ICMPLE,
+            OPERATOR_EQUAL, IF_ICMPEQ,
+            OPERATOR_NOTEQUAL, IF_ICMPNE
+    );
 }
