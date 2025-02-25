@@ -28,7 +28,12 @@ statement     : varDeclaration
               | ifStatement
               | whileStatement
               | RETURN expression SEMICOLON
-              | PRINT LPAREN expression RPAREN SEMICOLON ;
+              | printStatement
+              | readStatement ;
+
+printStatement: PRINT LPAREN expression RPAREN SEMICOLON ;
+
+readStatement : READ LPAREN IDENTIFIER RPAREN SEMICOLON ;
 
 ifStatement   : IF LPAREN expression RPAREN block (ELSE block)? ;
 whileStatement
@@ -88,6 +93,7 @@ METHODS       : 'methods' ;
 INIT          : 'init' ;
 RETURN        : 'return' ;
 PRINT         : 'print' ;
+READ          : 'read' ;
 IF            : 'if' ;
 ELSE          : 'else' ;
 WHILE         : 'while' ;

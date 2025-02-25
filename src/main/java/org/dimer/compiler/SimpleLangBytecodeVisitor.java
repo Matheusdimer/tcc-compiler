@@ -129,13 +129,18 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
         if (currentMethod == null) {
             throw new IllegalStateException(String.format("Erro ao processar uma declaração na linha %d: Statement %s sem estar dentro de um método", ctx.start.getLine(), ctx.getText()));
         }
+        return super.visitStatement(ctx);
+    }
 
-        if (ctx.getText().startsWith("print")) {
-            executePrint(ctx);
-        } else {
-            super.visitStatement(ctx);
-        }
+    @Override
+    public Void visitPrintStatement(SimpleLangParser.PrintStatementContext ctx) {
+        currentMethod.visitFieldInsn(GETSTATIC, "java/lang/System", "out", "Ljava/io/PrintStream;");
+        visit(ctx.expression());
 
+        String type = determineTypeOfExpression(ctx.expression());
+        String descriptor = Type.getMethodDescriptor(Type.VOID_TYPE, Type.getType(typeToDescriptor(type)));
+
+        currentMethod.visitMethodInsn(INVOKEVIRTUAL, "java/io/PrintStream", "println", descriptor, false);
         return null;
     }
 
@@ -354,16 +359,6 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
     private void loadClassVariable(ParserRuleContext ctx, String varName) {
         currentMethod.visitVarInsn(ALOAD, 0); // Carrega 'this'
         currentMethod.visitFieldInsn(GETFIELD, className, varName, determineDescriptor(ctx, varName)); // Pega o atributo
-    }
-
-    private void executePrint(SimpleLangParser.StatementContext ctx) {
-        currentMethod.visitFieldInsn(GETSTATIC, "java/lang/System", "out", "Ljava/io/PrintStream;");
-        visit(ctx.expression());
-
-        String type = determineTypeOfExpression(ctx.expression());
-        String descriptor = Type.getMethodDescriptor(Type.VOID_TYPE, Type.getType(typeToDescriptor(type)));
-
-        currentMethod.visitMethodInsn(INVOKEVIRTUAL, "java/io/PrintStream", "println", descriptor, false);
     }
 
     private String determineDescriptor(ParserRuleContext ctx, String varName) {
