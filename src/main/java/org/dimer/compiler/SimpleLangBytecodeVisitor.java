@@ -130,17 +130,10 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
             throw new IllegalStateException(String.format("Erro ao processar uma declaração na linha %d: Statement %s sem estar dentro de um método", ctx.start.getLine(), ctx.getText()));
         }
 
-        try {
-            if (ctx.getText().startsWith("print")) {
-                executePrint(ctx);
-            } else {
-                super.visitStatement(ctx);
-            }
-        } catch (Exception e) {
-            throw new RuntimeException(
-                    String.format("Erro ao processar uma declaração na linha %d: %s", ctx.start.getLine(), e.getMessage()),
-                    e
-            );
+        if (ctx.getText().startsWith("print")) {
+            executePrint(ctx);
+        } else {
+            super.visitStatement(ctx);
         }
 
         return null;
