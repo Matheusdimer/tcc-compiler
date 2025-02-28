@@ -443,17 +443,7 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
         Label endLabel = new Label(); // Marcação para o final do bloco do if
         Label elseLabel = new Label(); // Marcação para o início do bloco else caso tenha
 
-        Integer instruction;
-
-        if (ctx.expression().comparisonExpression() != null) {
-            instruction = OPERATORS_INSTRUCTIONS.get(ctx.expression().comparisonExpression().getChild(1).getText());
-
-            if (instruction == null) {
-                throw new IllegalArgumentException(String.format("Linha %d: operador %s não compatível", ctx.start.getLine(), ctx.expression().getText()));
-            }
-        } else {
-            instruction = IFNE;
-        }
+        int instruction = determineComparisonInstruction(ctx.expression());
 
         // Exemplo: Instrução de comparação de int GT (greater than), se retornar true (1),
         // faz o jump para o label do bloco then
@@ -481,6 +471,46 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
         }
 
         // Acabado o bloco then, marca o ponto de fim para continuar o método
+        currentMethod.visitLabel(endLabel);
+
+        return null;
+    }
+
+    private int determineComparisonInstruction(SimpleLangParser.ExpressionContext ctx) {
+        if (ctx.comparisonExpression() != null) {
+            Integer instruction = OPERATORS_INSTRUCTIONS.get(ctx.comparisonExpression().getChild(1).getText());
+
+            if (instruction == null) {
+                throw new IllegalArgumentException(String.format("Linha %d: operador %s não compatível", ctx.start.getLine(), ctx.getText()));
+            }
+
+            return instruction;
+        }
+
+        return IFNE;
+    }
+
+    @Override
+    public Void visitWhileStatement(SimpleLangParser.WhileStatementContext ctx) {
+        Label conditionLabel = new Label();
+        Label blockLabel = new Label();
+        Label endLabel = new Label();
+
+        int instruction = determineComparisonInstruction(ctx.expression());
+
+        // Marca o início do bloco da condição
+        currentMethod.visitLabel(conditionLabel);
+        visit(ctx.expression()); // Compila a expressão do while
+
+        // Instrução de jump condicional baseado no retorno da expressão
+        currentMethod.visitJumpInsn(instruction, blockLabel); // Caso true, executa o bloco dentro do while
+        currentMethod.visitJumpInsn(GOTO, endLabel); // Caso false, vai pro final do while
+
+        currentMethod.visitLabel(blockLabel); // Início do bloco do while
+        visit(ctx.block());
+
+        // Ao acabar o bloco do while, jump de volta para o bloco da condição do while e executa dnv
+        currentMethod.visitJumpInsn(GOTO, conditionLabel);
         currentMethod.visitLabel(endLabel);
 
         return null;

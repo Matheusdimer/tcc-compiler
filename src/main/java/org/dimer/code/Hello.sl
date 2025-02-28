@@ -39,6 +39,11 @@ class Hello {
         print("Olá, digite seu nome: ");
         read(nome);
 
+        while (nome == "") {
+            print("Por favor, digite seu nome: ");
+            read(nome);
+        }
+
         print("Digite sua idade: ");
         read(idade);
 
