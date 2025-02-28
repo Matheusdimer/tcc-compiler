@@ -89,6 +89,21 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
         return null;
     }
 
+    @Override
+    public Void visitAssignment(SimpleLangParser.AssignmentContext ctx) {
+        Variable variable = getVariable(ctx, ctx.IDENTIFIER().getText());
+        String type = determineTypeOfExpression(ctx.expression());
+
+        if (!variable.type().equals(type)) {
+            throw new IllegalArgumentException(String.format("Linha %d: variável %s do tipo %s não compatível com atribuição de %s",
+                    ctx.start.getLine(), variable.name(), variable.type(), type));
+        }
+
+        visit(ctx.expression());
+        storeVariable(ctx, variable.name());
+        return null;
+    }
+
     /**
      * Cria o construtor da classe a partir do bloco 'init' do programa.
      * Nesse bloco também são imputados os valores das variáveis da classe (do bloco var)
@@ -426,6 +441,7 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
 
         Label thenLabel = new Label(); // Marcação para o bloco de código caso o if dê true
         Label endLabel = new Label(); // Marcação para o final do bloco do if
+        Label elseLabel = new Label(); // Marcação para o início do bloco else caso tenha
 
         Integer instruction;
 
@@ -443,12 +459,26 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
         // faz o jump para o label do bloco then
         currentMethod.visitJumpInsn(instruction, thenLabel);
 
-        // Após à execução do bloco then, volta e da jump para o final do if
-        currentMethod.visitJumpInsn(GOTO, endLabel);
+        if (ctx.ELSE() != null) {
+            // Caso tenha else da jump para o bloco else
+            currentMethod.visitJumpInsn(GOTO, elseLabel);
+        } else {
+            // Após à execução do bloco then, volta e da jump para o final do if
+            currentMethod.visitJumpInsn(GOTO, endLabel);
+        }
 
         // Marca de fato o início do bloco then
         currentMethod.visitLabel(thenLabel);
         visit(ctx.block(0)); // Compila o código dentro do bloco then
+
+        if (ctx.ELSE() != null) {
+            currentMethod.visitJumpInsn(GOTO, endLabel);
+
+            currentMethod.visitLabel(elseLabel);
+            visit(ctx.block(1)); // Compila o bloco else
+
+            currentMethod.visitJumpInsn(GOTO, endLabel);
+        }
 
         // Acabado o bloco then, marca o ponto de fim para continuar o método
         currentMethod.visitLabel(endLabel);

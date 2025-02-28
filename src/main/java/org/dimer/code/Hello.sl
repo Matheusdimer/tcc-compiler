@@ -12,11 +12,15 @@ class Hello {
         }
 
         anosParaAposentar(): int {
+            int resultado;
+
             if (getIdade() > idadeAposentadoria) {
-                return 0;
+                resultado = 0;
+            } else {
+                resultado = idadeAposentadoria - getIdade();
             }
 
-            return idadeAposentadoria - getIdade();
+            return resultado;
         }
 
         formatAposentadoria(): string {
