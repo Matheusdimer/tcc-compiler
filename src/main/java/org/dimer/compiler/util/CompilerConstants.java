@@ -19,6 +19,8 @@ public class CompilerConstants {
     public static final String OPERATOR_LTE = "<=";
     public static final String OPERATOR_EQUAL = "==";
     public static final String OPERATOR_NOTEQUAL = "!=";
+    public static final String OPERATOR_AND = "and";
+    public static final String OPERATOR_OR = "or";
 
     public static final Map<String, Integer> OPERATORS_INSTRUCTIONS = Map.of(
             OPERATOR_GT, IF_ICMPGT,

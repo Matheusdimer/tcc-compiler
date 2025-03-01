@@ -478,16 +478,20 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
 
     private int determineComparisonInstruction(SimpleLangParser.ExpressionContext ctx) {
         if (ctx.comparisonExpression() != null) {
-            Integer instruction = OPERATORS_INSTRUCTIONS.get(ctx.comparisonExpression().getChild(1).getText());
-
-            if (instruction == null) {
-                throw new IllegalArgumentException(String.format("Linha %d: operador %s não compatível", ctx.start.getLine(), ctx.getText()));
-            }
-
-            return instruction;
+            return determineComparisonInstruction(ctx.comparisonExpression());
         }
 
         return IFNE;
+    }
+
+    private int determineComparisonInstruction(SimpleLangParser.ComparisonExpressionContext ctx) {
+        Integer instruction = OPERATORS_INSTRUCTIONS.get(ctx.getChild(1).getText());
+
+        if (instruction == null) {
+            throw new IllegalArgumentException(String.format("Linha %d: operador %s não compatível", ctx.start.getLine(), ctx.getText()));
+        }
+
+        return instruction;
     }
 
     @Override
@@ -524,6 +528,13 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
     public Void visitComparisonExpression(SimpleLangParser.ComparisonExpressionContext ctx) {
         visit(ctx.operand(0));
         visit(ctx.operand(1));
+
+        // Caso a comparação está num contexto com ANDs ou ORs, cada expressão será computada
+        // retornando o resultado para o topo da pilha
+        if (ctx.getParent() instanceof SimpleLangParser.BooleanExpressionContext) {
+            currentMethod.visitInsn(determineComparisonInstruction(ctx));
+        }
+        
         return null;
     }
 
@@ -536,6 +547,24 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
         loadString(ctx, string2);
 
         currentMethod.visitMethodInsn(INVOKEVIRTUAL, "java/lang/String", "equals", "(Ljava/lang/Object;)Z", false);
+
+        return null;
+    }
+
+    @Override
+    public Void visitBooleanExpression(SimpleLangParser.BooleanExpressionContext ctx) {
+        for (int i = 0; i < ctx.getChildCount(); i += 3) {
+            visit(ctx.getChild(i));
+            visit(ctx.getChild(i + 2));
+
+            String operator = ctx.getChild(i + 1).getText();
+
+            switch (operator) {
+                case OPERATOR_AND -> currentMethod.visitInsn(IAND);
+                case OPERATOR_OR -> currentMethod.visitInsn(IOR);
+                case null, default -> throw new IllegalArgumentException("Operador " + operator + " desconhecido");
+            }
+        }
 
         return null;
     }
@@ -789,7 +818,7 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
             return determineLiteralType(ctx.literal());
         }
 
-        if (ctx.comparisonExpression() != null || ctx.comparisonStringExpression() != null) {
+        if (ctx.comparisonExpression() != null || ctx.comparisonStringExpression() != null || ctx.booleanExpression() != null) {
             return TYPE_BOOL;
         }
 

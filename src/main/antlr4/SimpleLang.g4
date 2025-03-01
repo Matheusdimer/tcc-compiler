@@ -52,11 +52,18 @@ expression
               | numericExpression
               | comparisonExpression
               | comparisonStringExpression
+              | booleanExpression
               | involvedExpression
               | methodCall
               | IDENTIFIER
               | literal
               ;
+
+booleanExpression
+              : (comparisonStringExpression | comparisonExpression | involvedBooleanExpression) ((AND | OR) (comparisonStringExpression | comparisonExpression | involvedBooleanExpression))+;
+
+involvedBooleanExpression
+              : LPAREN booleanExpression RPAREN ;
 
 stringConcatenation
               : STRING (PLUS (literal | IDENTIFIER | involvedNumericExpression | methodCall))+ ;
@@ -124,6 +131,8 @@ GTE           : '>=' ;
 LTE           : '<=' ;
 EQUAL         : '==' ;
 NOTEQUAL      : '!=' ;
+AND           : 'and';
+OR            : 'or';
 
 // Outros tokens
 COMMENT       : '#' ~[\r\n]* -> skip;         // Comentários iniciados com '#' são ignorados
