@@ -443,7 +443,7 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
         var booleanExpression = ctx.expression().booleanExpression();
 
         if (booleanExpression != null) {
-            visitBooleanExpression(ctx, booleanExpression, thenLabel, elseLabel, endLabel);
+            visitBooleanExpression(booleanExpression, thenLabel, ctx.ELSE() != null ? elseLabel : endLabel);
         } else {
             // Faz o load dos valores contidos na expressão para a pilha
             visit(ctx.expression());
@@ -537,23 +537,21 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
     }
 
 
-    public void visitBooleanExpression(SimpleLangParser.IfStatementContext ctx,
-                                       SimpleLangParser.BooleanExpressionContext booleanExpression,
-                                       Label thenLabel, Label elseLabel, Label endLabel) {
-        int andCount = booleanExpression.AND().size();
-        int orCount = booleanExpression.OR().size();
+    public void visitBooleanExpression(SimpleLangParser.BooleanExpressionContext ctx,
+                                       Label thenLabel, Label labelIfFalse) {
+        int andCount = ctx.AND().size();
+        int orCount = ctx.OR().size();
         boolean isAnd = andCount > 0;
 
         if (andCount > 0 && orCount > 0) {
-            throw new IllegalArgumentException(String.format("Linha %d: só é permitido expressões apenas com ANDs ou ORs, sem misturá-los: %s", ctx.start.getLine(), ctx.expression().getText()));
+            throw new IllegalArgumentException(String.format("Linha %d: só é permitido expressões apenas com ANDs ou ORs, sem misturá-los: %s", ctx.start.getLine(), ctx.getText()));
         }
 
         int count = Math.max(andCount, orCount) * 2;
-        var labelIfFalse = ctx.ELSE() != null ? elseLabel : endLabel;
 
         for (int i = 0; i < count; i++) {
-            var child = booleanExpression.getChild(i * 2);
-            int instruction = 0;
+            var child = ctx.getChild(i * 2);
+            int instruction;
 
             if (child instanceof SimpleLangParser.ComparisonStringExpressionContext comparisonStringExpressionContext) {
                 visit(comparisonStringExpressionContext);
@@ -567,12 +565,12 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
                     instruction = invertComparisonInstruction(instruction);
                 }
             } else {
-                throw new IllegalArgumentException(String.format("Linha %d: operação não suportada: %s", ctx.start.getLine(), ctx.expression().getText()));
+                throw new IllegalArgumentException(String.format("Linha %d: operação não suportada: %s", ctx.start.getLine(), ctx.getText()));
             }
 
-            currentMethod.visitJumpInsn(instruction, thenLabel);
+            currentMethod.visitJumpInsn(instruction, isAnd ? labelIfFalse : thenLabel);
         }
-        currentMethod.visitJumpInsn(GOTO, labelIfFalse);
+        currentMethod.visitJumpInsn(GOTO, isAnd ? thenLabel : labelIfFalse);
     }
 
     @Override
@@ -585,11 +583,15 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
 
         // Marca o início do bloco da condição
         currentMethod.visitLabel(conditionLabel);
-        visit(ctx.expression()); // Compila a expressão do while
 
-        // Instrução de jump condicional baseado no retorno da expressão
-        currentMethod.visitJumpInsn(instruction, blockLabel); // Caso true, executa o bloco dentro do while
-        currentMethod.visitJumpInsn(GOTO, endLabel); // Caso false, vai pro final do while
+        if (ctx.expression().booleanExpression() != null) {
+            visitBooleanExpression(ctx.expression().booleanExpression(), blockLabel, endLabel);
+        } else {
+            visit(ctx.expression()); // Compila a expressão do while
+            // Instrução de jump condicional baseado no retorno da expressão
+            currentMethod.visitJumpInsn(instruction, blockLabel); // Caso true, executa o bloco dentro do while
+            currentMethod.visitJumpInsn(GOTO, endLabel); // Caso false, vai pro final do while
+        }
 
         currentMethod.visitLabel(blockLabel); // Início do bloco do while
         visit(ctx.block());
