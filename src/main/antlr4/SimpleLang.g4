@@ -60,10 +60,7 @@ expression
               ;
 
 booleanExpression
-              : (comparisonStringExpression | comparisonExpression | involvedBooleanExpression) ((AND | OR) (comparisonStringExpression | comparisonExpression | involvedBooleanExpression))+;
-
-involvedBooleanExpression
-              : LPAREN booleanExpression RPAREN ;
+              : (comparisonStringExpression | comparisonExpression) ((AND | OR) (comparisonStringExpression | comparisonExpression))+;
 
 stringConcatenation
               : STRING (PLUS (literal | IDENTIFIER | involvedNumericExpression | methodCall))+ ;

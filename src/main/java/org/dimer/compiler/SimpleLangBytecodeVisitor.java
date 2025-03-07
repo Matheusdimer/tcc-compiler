@@ -436,25 +436,31 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
             throw new IllegalArgumentException(String.format("Linha %d: expressão dentro do if %s não retorna boolean", ctx.start.getLine(), ctx.expression().getText()));
         }
 
-        // Faz o load dos valores contidos na expressão para a pilha
-        visit(ctx.expression());
-
         Label thenLabel = new Label(); // Marcação para o bloco de código caso o if dê true
         Label endLabel = new Label(); // Marcação para o final do bloco do if
         Label elseLabel = new Label(); // Marcação para o início do bloco else caso tenha
 
-        int instruction = determineComparisonInstruction(ctx.expression());
+        var booleanExpression = ctx.expression().booleanExpression();
 
-        // Exemplo: Instrução de comparação de int GT (greater than), se retornar true (1),
-        // faz o jump para o label do bloco then
-        currentMethod.visitJumpInsn(instruction, thenLabel);
-
-        if (ctx.ELSE() != null) {
-            // Caso tenha else da jump para o bloco else
-            currentMethod.visitJumpInsn(GOTO, elseLabel);
+        if (booleanExpression != null) {
+            visitBooleanExpression(ctx, booleanExpression, thenLabel, elseLabel, endLabel);
         } else {
-            // Após à execução do bloco then, volta e da jump para o final do if
-            currentMethod.visitJumpInsn(GOTO, endLabel);
+            // Faz o load dos valores contidos na expressão para a pilha
+            visit(ctx.expression());
+
+            int instruction = determineComparisonInstruction(ctx.expression());
+
+            // Exemplo: Instrução de comparação de int GT (greater than), se retornar true (1),
+            // faz o jump para o label do bloco then
+            currentMethod.visitJumpInsn(instruction, thenLabel);
+
+            if (ctx.ELSE() != null) {
+                // Caso tenha else da jump para o bloco else
+                currentMethod.visitJumpInsn(GOTO, elseLabel);
+            } else {
+                // Após à execução do bloco then, volta e da jump para o final do if
+                currentMethod.visitJumpInsn(GOTO, endLabel);
+            }
         }
 
         // Marca de fato o início do bloco then
@@ -494,6 +500,81 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
         return instruction;
     }
 
+    private int invertComparisonInstruction(int instruction) {
+        return switch (instruction) {
+            case IF_ICMPGT -> IF_ICMPLE;
+            case IF_ICMPLT -> IF_ICMPGE;
+            case IF_ICMPEQ -> IF_ICMPNE;
+            case IF_ICMPNE -> IF_ICMPEQ;
+            case IF_ICMPLE -> IF_ICMPGT;
+            case IF_ICMPGE -> IF_ICMPLT;
+            default -> throw new IllegalStateException("Unexpected value: " + instruction);
+        };
+    }
+
+    /**
+     * Entra na expressão e faz apenas o load dos dois operandos
+     * (exemplo: em 'a > b' faz apenas o load de a e de b, sem executar a comparação)
+     */
+    @Override
+    public Void visitComparisonExpression(SimpleLangParser.ComparisonExpressionContext ctx) {
+        visit(ctx.operand(0));
+        visit(ctx.operand(1));
+        return null;
+    }
+
+    @Override
+    public Void visitComparisonStringExpression(SimpleLangParser.ComparisonStringExpressionContext ctx) {
+        String string1 = ctx.getChild(0).getText();
+        String string2 = ctx.getChild(2).getText();
+
+        loadString(ctx, string1);
+        loadString(ctx, string2);
+
+        currentMethod.visitMethodInsn(INVOKEVIRTUAL, "java/lang/String", "equals", "(Ljava/lang/Object;)Z", false);
+
+        return null;
+    }
+
+
+    public void visitBooleanExpression(SimpleLangParser.IfStatementContext ctx,
+                                       SimpleLangParser.BooleanExpressionContext booleanExpression,
+                                       Label thenLabel, Label elseLabel, Label endLabel) {
+        int andCount = booleanExpression.AND().size();
+        int orCount = booleanExpression.OR().size();
+        boolean isAnd = andCount > 0;
+
+        if (andCount > 0 && orCount > 0) {
+            throw new IllegalArgumentException(String.format("Linha %d: só é permitido expressões apenas com ANDs ou ORs, sem misturá-los: %s", ctx.start.getLine(), ctx.expression().getText()));
+        }
+
+        int count = Math.max(andCount, orCount) * 2;
+        var labelIfFalse = ctx.ELSE() != null ? elseLabel : endLabel;
+
+        for (int i = 0; i < count; i++) {
+            var child = booleanExpression.getChild(i * 2);
+            int instruction = 0;
+
+            if (child instanceof SimpleLangParser.ComparisonStringExpressionContext comparisonStringExpressionContext) {
+                visit(comparisonStringExpressionContext);
+                instruction = isAnd ? IFEQ : IFNE;
+            } else if (child instanceof SimpleLangParser.ComparisonExpressionContext comparisonExpressionContext) {
+                visit(comparisonExpressionContext.operand(isAnd ? 1 : 0));
+                visit(comparisonExpressionContext.operand(isAnd ? 0 : 1));
+                instruction = determineComparisonInstruction(comparisonExpressionContext);
+
+                if (isAnd) {
+                    instruction = invertComparisonInstruction(instruction);
+                }
+            } else {
+                throw new IllegalArgumentException(String.format("Linha %d: operação não suportada: %s", ctx.start.getLine(), ctx.expression().getText()));
+            }
+
+            currentMethod.visitJumpInsn(instruction, labelIfFalse);
+        }
+        currentMethod.visitJumpInsn(GOTO, thenLabel);
+    }
+
     @Override
     public Void visitWhileStatement(SimpleLangParser.WhileStatementContext ctx) {
         Label conditionLabel = new Label();
@@ -516,55 +597,6 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
         // Ao acabar o bloco do while, jump de volta para o bloco da condição do while e executa dnv
         currentMethod.visitJumpInsn(GOTO, conditionLabel);
         currentMethod.visitLabel(endLabel);
-
-        return null;
-    }
-
-    /**
-     * Entra na expressão e faz apenas o load dos dois operandos
-     * (exemplo: em 'a > b' faz apenas o load de a e de b, sem executar a comparação)
-     */
-    @Override
-    public Void visitComparisonExpression(SimpleLangParser.ComparisonExpressionContext ctx) {
-        visit(ctx.operand(0));
-        visit(ctx.operand(1));
-
-        // Caso a comparação está num contexto com ANDs ou ORs, cada expressão será computada
-        // retornando o resultado para o topo da pilha
-        if (ctx.getParent() instanceof SimpleLangParser.BooleanExpressionContext) {
-            currentMethod.visitInsn(determineComparisonInstruction(ctx));
-        }
-        
-        return null;
-    }
-
-    @Override
-    public Void visitComparisonStringExpression(SimpleLangParser.ComparisonStringExpressionContext ctx) {
-        String string1 = ctx.getChild(0).getText();
-        String string2 = ctx.getChild(2).getText();
-
-        loadString(ctx, string1);
-        loadString(ctx, string2);
-
-        currentMethod.visitMethodInsn(INVOKEVIRTUAL, "java/lang/String", "equals", "(Ljava/lang/Object;)Z", false);
-
-        return null;
-    }
-
-    @Override
-    public Void visitBooleanExpression(SimpleLangParser.BooleanExpressionContext ctx) {
-        for (int i = 0; i < ctx.getChildCount(); i += 3) {
-            visit(ctx.getChild(i));
-            visit(ctx.getChild(i + 2));
-
-            String operator = ctx.getChild(i + 1).getText();
-
-            switch (operator) {
-                case OPERATOR_AND -> currentMethod.visitInsn(IAND);
-                case OPERATOR_OR -> currentMethod.visitInsn(IOR);
-                case null, default -> throw new IllegalArgumentException("Operador " + operator + " desconhecido");
-            }
-        }
 
         return null;
     }
