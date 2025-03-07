@@ -51,6 +51,10 @@ class Hello {
             print("Você nem trabalha");
         }
 
+        if (idade >= 18 and idade <= 70) {
+            print("Trabalhador");
+        }
+
         print("Olá " + nome + ", você tem " + idade + " anos de idade.");
         print("Cálculo muito louco: " + (idade + 10.5 + (20 - 2)));
 

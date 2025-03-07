@@ -570,9 +570,9 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
                 throw new IllegalArgumentException(String.format("Linha %d: operação não suportada: %s", ctx.start.getLine(), ctx.expression().getText()));
             }
 
-            currentMethod.visitJumpInsn(instruction, labelIfFalse);
+            currentMethod.visitJumpInsn(instruction, thenLabel);
         }
-        currentMethod.visitJumpInsn(GOTO, thenLabel);
+        currentMethod.visitJumpInsn(GOTO, labelIfFalse);
     }
 
     @Override
