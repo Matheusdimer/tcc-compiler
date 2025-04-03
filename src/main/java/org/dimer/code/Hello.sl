@@ -47,8 +47,18 @@ class Hello {
         print("Digite sua idade: ");
         read(idade);
 
+        while (idade < 1 or idade > 120) {
+            print("Idade inválida");
+            print("Digite sua idade: ");
+            read(idade);
+        }
+
         if (idade < 18 or idade > 70) {
             print("Você nem trabalha");
+        }
+
+        if (idade >= 18 and idade <= 70) {
+            print("Trabalhador");
         }
 
         print("Olá " + nome + ", você tem " + idade + " anos de idade.");
