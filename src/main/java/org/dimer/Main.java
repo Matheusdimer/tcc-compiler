@@ -7,8 +7,6 @@ import org.dimer.compiler.SimpleLangBytecodeVisitor;
 
 import java.io.File;
 import java.io.FileOutputStream;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 
 public class Main {
     private static final String BASE_TARGET_PATH = "./target/classes/";
@@ -20,8 +18,7 @@ public class Main {
             System.exit(1);
         }
         String filePath = args[0];
-        String code = Files.readString(Paths.get(filePath));
-        CharStream input = CharStreams.fromString(code);
+        CharStream input = CharStreams.fromFileName(filePath);
 
         SimpleLangLexer lexer = new SimpleLangLexer(input);
         CommonTokenStream tokens = new CommonTokenStream(lexer);
