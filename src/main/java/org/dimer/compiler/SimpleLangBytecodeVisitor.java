@@ -49,6 +49,8 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
         visit(ctx.methodsSection()); // Bloco methods
         visit(ctx.initSection()); // Método init
 
+        addMainMethod();
+
         classWriter.visitEnd();
         return null;
     }
@@ -881,5 +883,27 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
             throw new IllegalArgumentException(String.format("Linha %d: não foi possível determinar o tipo de retorno da expressão %s",
                     ctx.start.getLine(), ctx.getText()));
         }
+    }
+
+    private void addMainMethod() {
+        var methodVisitor = classWriter.visitMethod(
+                ACC_PUBLIC | ACC_STATIC,
+                "main",
+                "([Ljava/lang/String;)V",
+                null,
+                null
+        );
+
+        methodVisitor.visitCode();
+
+        // Criando o bytecode para `new Classe()`
+        methodVisitor.visitTypeInsn(NEW, className);
+        methodVisitor.visitInsn(DUP); // Duplica a referência no topo da pilha para chamar o construtor
+        methodVisitor.visitMethodInsn(INVOKESPECIAL, className, "<init>", "()V", false);
+
+        methodVisitor.visitInsn(RETURN);
+
+        methodVisitor.visitMaxs(2, 1); // Máximo de stack = 2, máximo de variáveis locais = 1 (args)
+        methodVisitor.visitEnd();
     }
 }
