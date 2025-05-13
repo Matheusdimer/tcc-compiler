@@ -22,6 +22,8 @@ import static org.objectweb.asm.Opcodes.*;
 
 public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
 
+    private static final String RESERVED_SCANNER_VARIABLE = "SimpleLangReservedScanner";
+
     private final ClassWriter classWriter;
     private final String className;
     private MethodVisitor currentMethod;
@@ -167,11 +169,7 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
         String varName = ctx.IDENTIFIER().getText();
         Variable variable = getVariable(ctx, varName);
 
-        // Gere instruções para capturar entrada do console
-        currentMethod.visitTypeInsn(NEW, "java/util/Scanner");
-        currentMethod.visitInsn(DUP);
-        currentMethod.visitFieldInsn(GETSTATIC, "java/lang/System", "in", "Ljava/io/InputStream;");
-        currentMethod.visitMethodInsn(INVOKESPECIAL, "java/util/Scanner", "<init>", "(Ljava/io/InputStream;)V", false);
+        loadScanner();
 
         switch (variable.type()) {
             case TYPE_STRING -> executeReadLine();
@@ -189,6 +187,30 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
 
         storeVariable(ctx, varName);
         return null;
+    }
+
+    private void loadScanner() {
+        if (localVariablesStack.isEmpty()) {
+            localVariablesStack.push(new LocalVariableManager());
+        }
+
+        LocalVariableManager manager = localVariablesStack.peek();
+
+        Variable variable = manager.load(RESERVED_SCANNER_VARIABLE);
+
+        if (variable == null) {
+            int index = manager.allocate(new Variable(RESERVED_SCANNER_VARIABLE, null));
+            // Gere instruções para capturar entrada do console
+            currentMethod.visitTypeInsn(NEW, "java/util/Scanner");
+            currentMethod.visitInsn(DUP);
+            currentMethod.visitFieldInsn(GETSTATIC, "java/lang/System", "in", "Ljava/io/InputStream;");
+            currentMethod.visitMethodInsn(INVOKESPECIAL, "java/util/Scanner", "<init>", "(Ljava/io/InputStream;)V", false);
+
+            currentMethod.visitVarInsn(ASTORE, index);
+            currentMethod.visitVarInsn(ALOAD, index);
+        } else {
+            currentMethod.visitVarInsn(ALOAD, variable.index());
+        }
     }
 
     private void executeReadLine() {
