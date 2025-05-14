@@ -37,9 +37,14 @@ public class Benchmark {
             somaJava += (end - start);
         }
 
+        long mediaSimpleLang = somaSimpleLang / REPETICOES;
+        long mediaJava = somaJava / REPETICOES;
+        double diferenca = ((double)(mediaSimpleLang - mediaJava) / mediaSimpleLang) * 100;
+
         System.out.println("------------------------------------------");
-        System.out.println("SimpleLang (média): " + (somaSimpleLang / REPETICOES) + " ns");
-        System.out.println("Java (média): " + (somaJava / REPETICOES) + " ns");
+        System.out.println("SimpleLang (média): " + mediaSimpleLang + " ns");
+        System.out.println("Java (média): " + mediaJava + " ns");
+        System.out.printf("Java foi %.1f%% mais rápido.\n", diferenca);
         System.out.println("------------------------------------------");
     }
 }
