@@ -1,6 +1,6 @@
 package org.dimer.benchmark;
 
-import org.dimer.code.Hello;
+//import org.dimer.code.Hello;
 import org.dimer.code.HelloJava;
 
 import java.io.ByteArrayInputStream;
@@ -23,7 +23,7 @@ public class Benchmark {
         for (int i = 0; i < REPETICOES; i++) {
             fornecerInput();
             long start = System.nanoTime();
-            Hello.main(new String[]{});
+//            Hello.main(new String[]{});
             long end = System.nanoTime();
             somaSimpleLang += (end - start);
         }
