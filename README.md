@@ -5,6 +5,8 @@ Você pode conferir um código de exemplo em `./src/main/java/org/dimer/code/Hel
 
 ## Compilação
 
+ - Versão Java: 21
+
 Dê preferência para abrir esse projeto com a IDE IntelliJ da JetBrains.
 Para compilar o projeto, execute `mvn install` pela IDE ou por linha de comando.
 
