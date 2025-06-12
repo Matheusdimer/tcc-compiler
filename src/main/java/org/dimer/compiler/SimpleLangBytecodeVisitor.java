@@ -325,6 +325,11 @@ public class SimpleLangBytecodeVisitor extends SimpleLangBaseVisitor<Void> {
             }
         }
 
+        numericExpressionStack.pop();
+
+        if (isFloatOperation && numericExpressionStack.isEmpty()) {
+            isFloatOperation = false;
+        }
         return null;
     }
 
